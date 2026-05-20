@@ -1,14 +1,41 @@
 import path from "node:path";
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+import Store from "electron-store";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+
+interface SettingsSchema {
+  githubToken?: string;
+}
+
+const settingsStore = new Store<SettingsSchema>({ name: "settings" });
+
+ipcMain.handle("settings:get-github-token", () => settingsStore.get("githubToken", ""));
+
+ipcMain.handle("settings:set-github-token", (_event, token: unknown) => {
+  if (typeof token !== "string") {
+    throw new Error("GitHub token must be a string");
+  }
+
+  const normalizedToken = token.trim();
+
+  if (normalizedToken.length === 0) {
+    settingsStore.delete("githubToken");
+    return true;
+  }
+
+  settingsStore.set("githubToken", normalizedToken);
+  return true;
+});
 
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
     height: 768,
     webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
       preload: path.join(__dirname, "../preload/preload.js"),
     },
     width: 1024,
