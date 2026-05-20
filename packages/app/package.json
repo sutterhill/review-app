@@ -1,0 +1,39 @@
+{
+  "name": "@review-app/app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron PR narrative review app",
+  "main": ".vite/build/main.js",
+  "scripts": {
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "start": "electron-forge start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.11.0",
+    "electron-store": "^11.0.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-redux": "^9.2.0",
+    "react-router": "^7.9.6",
+    "redux-saga": "^1.4.2"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-vite": "^7.10.2",
+    "@electron-forge/shared-types": "^7.11.2",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^39.2.3",
+    "vite": "^7.2.4",
+    "vitest": "^4.0.14"
+  }
+}
