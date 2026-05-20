@@ -5,6 +5,7 @@ import { Link, Route, Routes, useParams } from "react-router";
 
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
+import { NarrativeView } from "./components/NarrativeView";
 import {
   selectNarrativeContent,
   selectNarrativeError,
@@ -149,9 +150,16 @@ const PullRequestRoute = (): React.JSX.Element => {
                   : "Generate narrative"}
               </button>
               {narrativeError ? <p className="error">{narrativeError}</p> : null}
-              {narrativeContent ? <pre>{narrativeContent}</pre> : null}
             </div>
-            <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+            {narrativeContent ? (
+              <NarrativeView
+                narrative={narrativeContent}
+                onFileElement={handleFileElement}
+                pullRequest={prData}
+              />
+            ) : (
+              <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+            )}
           </div>
         </div>
       ) : null}

@@ -178,6 +178,151 @@ input {
   margin: 1rem;
 }
 
+.narrative-view {
+  display: grid;
+  gap: 1rem;
+}
+
+.narrative-prose {
+  color: #dbeafe;
+  line-height: 1.7;
+  max-width: 72ch;
+}
+
+.narrative-prose.subtle {
+  color: #94a3b8;
+}
+
+.narrative-prose h2,
+.narrative-prose h3,
+.narrative-prose h4,
+.narrative-prose p,
+.narrative-prose ul,
+.narrative-prose ol {
+  margin: 0 0 0.75rem;
+}
+
+.narrative-prose h2,
+.narrative-prose h3,
+.narrative-prose h4 {
+  color: #f8fafc;
+  line-height: 1.25;
+}
+
+.narrative-prose h2 {
+  font-size: 1.35rem;
+}
+
+.narrative-prose h3 {
+  font-size: 1.1rem;
+}
+
+.narrative-prose h4 {
+  font-size: 0.95rem;
+}
+
+.narrative-prose code {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.35rem;
+  color: #bae6fd;
+  font-size: 0.9em;
+  padding: 0.08rem 0.3rem;
+}
+
+.narrative-prose pre {
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.65rem;
+  overflow: auto;
+  padding: 0.875rem;
+}
+
+.narrative-prose pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.narrative-diff-section {
+  background: rgba(2, 6, 23, 0.58);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  scroll-margin-top: 1rem;
+}
+
+.narrative-diff-section.formatting-only {
+  opacity: 0.82;
+}
+
+.narrative-diff-header {
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+}
+
+.narrative-diff-header h3,
+.narrative-diff-header p {
+  margin: 0;
+}
+
+.narrative-diff-header h3 {
+  font-size: 0.95rem;
+}
+
+.narrative-diff-header p,
+.collapsed-diff-summary {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.narrative-diff-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.noise-pill {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  border-radius: 999px;
+  color: #fde68a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.diff-toggle {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(147, 197, 253, 0.38);
+  border-radius: 0.45rem;
+  color: #bfdbfe;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+}
+
+.diff-toggle:hover,
+.diff-toggle:focus-visible {
+  background: rgba(37, 99, 235, 0.3);
+  outline: 2px solid rgba(147, 197, 253, 0.3);
+  outline-offset: 2px;
+}
+
+.collapsed-diff-summary {
+  margin: 0;
+  padding: 0.875rem 1rem;
+}
+
 @media (max-width: 900px) {
   .review-layout {
     grid-template-columns: 1fr;
