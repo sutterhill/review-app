@@ -1,15 +1,15 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { PrFetchError, PrState, PullRequestData } from "./pr-types";
+import type { PrFetchError, PrState, PullRequestData, PullRequestSummary } from "./pr-types";
 
 const initialState: PrState = {
   data: null,
   error: null,
-  hasGitHubToken: false,
+  openPullRequests: [],
+  openPullRequestsError: null,
+  openPullRequestsStatus: "idle",
   reference: "",
   status: "idle",
-  tokenError: null,
-  tokenSaveStatus: "idle",
 };
 
 export const prSlice = createSlice({
@@ -31,18 +31,18 @@ export const prSlice = createSlice({
       state.error = null;
       state.status = "succeeded";
     },
-    saveGitHubToken(state, action: PayloadAction<string>) {
-      state.hasGitHubToken = action.payload.trim().length > 0;
-      state.tokenError = null;
-      state.tokenSaveStatus = "saving";
+    fetchOpenPullRequests(state) {
+      state.openPullRequestsError = null;
+      state.openPullRequestsStatus = "loading";
     },
-    saveGitHubTokenFailed(state, action: PayloadAction<string>) {
-      state.tokenError = action.payload;
-      state.tokenSaveStatus = "failed";
+    fetchOpenPullRequestsFailed(state, action: PayloadAction<PrFetchError>) {
+      state.openPullRequestsError = action.payload;
+      state.openPullRequestsStatus = "failed";
     },
-    saveGitHubTokenSucceeded(state) {
-      state.tokenError = null;
-      state.tokenSaveStatus = "saved";
+    fetchOpenPullRequestsSucceeded(state, action: PayloadAction<PullRequestSummary[]>) {
+      state.openPullRequests = action.payload;
+      state.openPullRequestsError = null;
+      state.openPullRequestsStatus = "succeeded";
     },
   },
 });

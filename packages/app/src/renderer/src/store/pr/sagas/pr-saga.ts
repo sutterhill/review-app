@@ -1,10 +1,13 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { all, call, put, takeLatest } from "redux-saga/effects";
 
-import { GitHubApiError, fetchPullRequestFromGitHub } from "../../../services/github";
-import { setGitHubToken } from "../../../services/settings";
+import {
+  GitHubApiError,
+  fetchOpenPullRequestsFromGitHub,
+  fetchPullRequestFromGitHub,
+} from "../../../services/github";
 import { prActions } from "../pr-slice";
-import type { PrFetchError, PullRequestData } from "../pr-types";
+import type { PrFetchError, PullRequestData, PullRequestSummary } from "../pr-types";
 
 export function* fetchPrSaga(action: PayloadAction<string>): Generator {
   try {
@@ -15,23 +18,19 @@ export function* fetchPrSaga(action: PayloadAction<string>): Generator {
   }
 }
 
-export function* saveGitHubTokenSaga(action: PayloadAction<string>): Generator {
+export function* fetchOpenPullRequestsSaga(): Generator {
   try {
-    yield call(setGitHubToken, action.payload);
-    yield put(prActions.saveGitHubTokenSucceeded());
+    const pullRequests = (yield call(fetchOpenPullRequestsFromGitHub)) as PullRequestSummary[];
+    yield put(prActions.fetchOpenPullRequestsSucceeded(pullRequests));
   } catch (error) {
-    yield put(
-      prActions.saveGitHubTokenFailed(
-        error instanceof Error ? error.message : "Token save failed.",
-      ),
-    );
+    yield put(prActions.fetchOpenPullRequestsFailed(toPrFetchError(error)));
   }
 }
 
 export function* prSaga(): Generator {
   yield all([
+    takeLatest(prActions.fetchOpenPullRequests.type, fetchOpenPullRequestsSaga),
     takeLatest(prActions.fetchPr.type, fetchPrSaga),
-    takeLatest(prActions.saveGitHubToken.type, saveGitHubTokenSaga),
   ]);
 }
 
