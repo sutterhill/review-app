@@ -38,6 +38,18 @@ export interface PullRequestData {
   metadata: PullRequestMetadata;
 }
 
+export interface PullRequestSummary {
+  author: GitHubAccount;
+  htmlUrl: string;
+  number: number;
+  owner: string;
+  reference: string;
+  repo: string;
+  repositoryName: string;
+  title: string;
+  updatedAt: string;
+}
+
 export type PrErrorCode =
   | "auth_failed"
   | "invalid_reference"
@@ -52,14 +64,13 @@ export interface PrFetchError {
 }
 
 export type PrRequestStatus = "failed" | "idle" | "loading" | "succeeded";
-export type TokenSaveStatus = "failed" | "idle" | "saved" | "saving";
 
 export interface PrState {
   data: PullRequestData | null;
   error: PrFetchError | null;
-  hasGitHubToken: boolean;
+  openPullRequests: PullRequestSummary[];
+  openPullRequestsError: PrFetchError | null;
+  openPullRequestsStatus: PrRequestStatus;
   reference: string;
   status: PrRequestStatus;
-  tokenError: string | null;
-  tokenSaveStatus: TokenSaveStatus;
 }
