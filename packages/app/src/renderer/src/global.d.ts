@@ -1,6 +1,11 @@
 export {};
 
 import type {
+  OrchestratorAgentController,
+  OrchestratorAgentEvent,
+  OrchestratorAgentSessionRequest,
+} from "./services/agent-orchestrator";
+import type {
   NarrativeAgentController,
   NarrativeAgentEvent,
   NarrativeAgentRequest,
@@ -20,6 +25,12 @@ declare global {
         request: NarrativeAgentRequest,
         onEvent: (event: NarrativeAgentEvent) => void,
       ) => NarrativeAgentController;
+    };
+    reviewAppOrchestrator: {
+      run: (
+        request: OrchestratorAgentSessionRequest,
+        onEvent: (event: OrchestratorAgentEvent) => void,
+      ) => OrchestratorAgentController;
     };
   }
 }

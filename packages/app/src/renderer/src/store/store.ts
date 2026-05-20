@@ -3,6 +3,7 @@ import createSagaMiddleware from "redux-saga";
 
 import { appReducer } from "./app/app-slice";
 import { narrativeReducer } from "./narrative/narrative-slice";
+import { orchestratorReducer } from "./orchestrator/orchestrator-slice";
 import { prReducer } from "./pr/pr-slice";
 import { rootSaga } from "./root-saga";
 
@@ -14,6 +15,7 @@ export const store = configureStore({
   reducer: {
     app: appReducer,
     narrative: narrativeReducer,
+    orchestrator: orchestratorReducer,
     pr: prReducer,
   },
 });
