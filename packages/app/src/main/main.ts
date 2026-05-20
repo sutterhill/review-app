@@ -4,6 +4,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import Store from "electron-store";
 
 import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
+import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -43,6 +44,20 @@ ipcMain.handle("narrative:generate", async (event, requestId: unknown, request: 
 ipcMain.handle("narrative:abort", async (_event, requestId: unknown) => {
   if (typeof requestId === "string") {
     await abortNarrativeAgentSession(requestId);
+  }
+});
+
+ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: unknown) => {
+  if (typeof requestId !== "string" || !isOrchestratorSessionRequest(request)) {
+    throw new Error("Invalid orchestrator session request.");
+  }
+
+  await runOrchestratorAgentSession(requestId, request, event.sender);
+});
+
+ipcMain.handle("orchestrator:abort", async (_event, requestId: unknown) => {
+  if (typeof requestId === "string") {
+    await abortOrchestratorAgentSession(requestId);
   }
 });
 
@@ -88,4 +103,22 @@ const isNarrativeRequest = (
 
   const candidate = request as { groups?: unknown; metadata?: unknown };
   return Array.isArray(candidate.groups) && !!candidate.metadata;
+};
+
+const isOrchestratorSessionRequest = (
+  request: unknown,
+): request is Parameters<typeof runOrchestratorAgentSession>[1] => {
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+
+  const candidate = request as { cwd?: unknown; prompt?: unknown; tools?: unknown };
+  return (
+    typeof candidate.cwd === "string" &&
+    candidate.cwd.length > 0 &&
+    typeof candidate.prompt === "string" &&
+    candidate.prompt.length > 0 &&
+    (candidate.tools === undefined ||
+      (Array.isArray(candidate.tools) && candidate.tools.every((tool) => typeof tool === "string")))
+  );
 };
