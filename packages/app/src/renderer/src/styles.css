@@ -45,11 +45,48 @@ a {
 
 .button {
   background: #2563eb;
+  border: 0;
   border-radius: 0.5rem;
   color: white;
+  cursor: pointer;
   display: inline-flex;
   font-weight: 700;
   margin-top: 1rem;
   padding: 0.75rem 1rem;
   text-decoration: none;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.stack {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+input {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 0.5rem;
+  color: #e2e8f0;
+  padding: 0.75rem 1rem;
+}
+
+.result-card {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.75rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+}
+
+.error {
+  color: #fca5a5;
+}
+
+.success {
+  color: #86efac;
 }
