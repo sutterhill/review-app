@@ -1,8 +1,16 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, Route, Routes, useParams } from "react-router";
 
+import { DiffView } from "./components/DiffView";
+import { ChangedFileTree } from "./components/FileTree";
+import {
+  selectNarrativeContent,
+  selectNarrativeError,
+  selectNarrativeStatus,
+} from "./store/narrative/narrative-selectors";
+import { narrativeActions } from "./store/narrative/narrative-slice";
 import {
   selectPrData,
   selectPrError,
@@ -33,12 +41,21 @@ const PullRequestRoute = (): React.JSX.Element => {
   const prData = useSelector(selectPrData);
   const prError = useSelector(selectPrError);
   const prStatus = useSelector(selectPrStatus);
+  const narrativeContent = useSelector(selectNarrativeContent);
+  const narrativeError = useSelector(selectNarrativeError);
+  const narrativeStatus = useSelector(selectNarrativeStatus);
   const tokenError = useSelector(selectTokenError);
   const tokenSaveStatus = useSelector(selectTokenSaveStatus);
   const [githubToken, setGithubToken] = useState("");
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [prReference, setPrReference] = useState(
     owner && repo && number ? `${owner}/${repo}#${number}` : "owner/repo#1",
   );
+  const fileElements = useRef(new Map<string, HTMLElement>());
+
+  useEffect(() => {
+    setSelectedFilePath(prData?.files[0]?.filename ?? null);
+  }, [prData]);
 
   const handleTokenSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -50,8 +67,28 @@ const PullRequestRoute = (): React.JSX.Element => {
     dispatch(prActions.fetchPr(prReference));
   };
 
+  const handleNarrativeGenerate = (): void => {
+    dispatch(narrativeActions.generateNarrative());
+  };
+
+  const handleFileElement = useCallback((path: string, element: HTMLElement | null): void => {
+    if (element) {
+      fileElements.current.set(path, element);
+      return;
+    }
+
+    fileElements.current.delete(path);
+  }, []);
+
+  const handleFileSelect = useCallback((path: string): void => {
+    setSelectedFilePath(path);
+    requestAnimationFrame(() => {
+      fileElements.current.get(path)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
   return (
-    <section className="panel">
+    <section className={prData ? "panel panel-wide" : "panel"}>
       <p className="eyebrow">Pull Request</p>
       <h1>
         {owner}/{repo}#{number}
@@ -85,13 +122,37 @@ const PullRequestRoute = (): React.JSX.Element => {
         </button>
       </form>
       {prData ? (
-        <div className="result-card">
-          <p className="eyebrow">Fetched PR</p>
-          <h2>{prData.metadata.title}</h2>
-          <p>
-            {prData.metadata.author.login} opened {prData.metadata.reference} with{" "}
-            {prData.files.length} changed files.
-          </p>
+        <div className="review-layout">
+          <aside className="file-sidebar" aria-label="Changed files">
+            <ChangedFileTree
+              files={prData.files}
+              onSelect={handleFileSelect}
+              selectedPath={selectedFilePath}
+            />
+          </aside>
+          <div className="diff-panel">
+            <div className="result-card">
+              <p className="eyebrow">Fetched PR</p>
+              <h2>{prData.metadata.title}</h2>
+              <p>
+                {prData.metadata.author.login} opened {prData.metadata.reference} with{" "}
+                {prData.files.length} changed files.
+              </p>
+              <button
+                className="button"
+                disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
+                onClick={handleNarrativeGenerate}
+                type="button"
+              >
+                {narrativeStatus === "loading" || narrativeStatus === "streaming"
+                  ? "Generating narrative..."
+                  : "Generate narrative"}
+              </button>
+              {narrativeError ? <p className="error">{narrativeError}</p> : null}
+              {narrativeContent ? <pre>{narrativeContent}</pre> : null}
+            </div>
+            <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+          </div>
         </div>
       ) : null}
       {prError ? <p className="error">{prError.message}</p> : null}

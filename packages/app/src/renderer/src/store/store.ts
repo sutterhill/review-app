@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import createSagaMiddleware from "redux-saga";
 
 import { appReducer } from "./app/app-slice";
+import { narrativeReducer } from "./narrative/narrative-slice";
 import { prReducer } from "./pr/pr-slice";
 import { rootSaga } from "./root-saga";
 
@@ -12,6 +13,7 @@ export const store = configureStore({
     getDefaultMiddleware({ thunk: false }).concat(sagaMiddleware),
   reducer: {
     app: appReducer,
+    narrative: narrativeReducer,
     pr: prReducer,
   },
 });

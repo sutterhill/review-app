@@ -3,6 +3,8 @@ import path from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import Store from "electron-store";
 
+import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
+
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
@@ -28,6 +30,20 @@ ipcMain.handle("settings:set-github-token", (_event, token: unknown) => {
 
   settingsStore.set("githubToken", normalizedToken);
   return true;
+});
+
+ipcMain.handle("narrative:generate", async (event, requestId: unknown, request: unknown) => {
+  if (typeof requestId !== "string" || !isNarrativeRequest(request)) {
+    throw new Error("Invalid narrative generation request.");
+  }
+
+  await generateNarrativeAgentSession(requestId, request, event.sender);
+});
+
+ipcMain.handle("narrative:abort", async (_event, requestId: unknown) => {
+  if (typeof requestId === "string") {
+    await abortNarrativeAgentSession(requestId);
+  }
 });
 
 const createWindow = (): void => {
@@ -62,3 +78,14 @@ app.on("activate", () => {
     createWindow();
   }
 });
+
+const isNarrativeRequest = (
+  request: unknown,
+): request is Parameters<typeof generateNarrativeAgentSession>[1] => {
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+
+  const candidate = request as { groups?: unknown; metadata?: unknown };
+  return Array.isArray(candidate.groups) && !!candidate.metadata;
+};

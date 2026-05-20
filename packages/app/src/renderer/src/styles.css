@@ -35,6 +35,11 @@ a {
   padding: 2rem;
 }
 
+.panel-wide {
+  max-width: min(118rem, calc(100vw - 4rem));
+  width: 100%;
+}
+
 .eyebrow {
   color: #38bdf8;
   font-size: 0.75rem;
@@ -89,4 +94,97 @@ input {
 
 .success {
   color: #86efac;
+}
+
+.review-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  margin-top: 1.5rem;
+}
+
+.file-sidebar {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.75rem;
+  height: calc(100vh - 18rem);
+  min-height: 28rem;
+  overflow: hidden;
+}
+
+.changed-file-tree {
+  --trees-bg-override: #0f172a;
+  --trees-border-color-override: rgba(148, 163, 184, 0.25);
+  --trees-fg-override: #e2e8f0;
+  --trees-selected-bg-override: rgba(37, 99, 235, 0.35);
+}
+
+.diff-panel {
+  min-width: 0;
+}
+
+.diff-view {
+  display: grid;
+  gap: 1rem;
+}
+
+.diff-file {
+  background: rgba(2, 6, 23, 0.58);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  scroll-margin-top: 1rem;
+}
+
+.diff-file-header {
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+}
+
+.diff-file-header h3,
+.diff-file-header p {
+  margin: 0;
+}
+
+.diff-file-header h3 {
+  font-size: 0.95rem;
+}
+
+.diff-file-header p {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  color: #7dd3fc;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.additions {
+  color: #86efac;
+}
+
+.deletions {
+  color: #fca5a5;
+}
+
+.empty-state {
+  color: #94a3b8;
+  margin: 1rem;
+}
+
+@media (max-width: 900px) {
+  .review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .file-sidebar {
+    height: 18rem;
+    min-height: 18rem;
+  }
 }
