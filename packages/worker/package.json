@@ -1,0 +1,18 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply review-app-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply review-app-db --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260520.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.15.2"
+  }
+}
