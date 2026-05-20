@@ -1,4 +1,5 @@
 {
+  "ignorePatterns": [".agents/**", ".augment/**"],
   "printWidth": 100,
   "semi": true,
   "singleQuote": false,

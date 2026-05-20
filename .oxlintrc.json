@@ -9,9 +9,12 @@
     "browser": true,
     "node": true
   },
+  "ignorePatterns": [".agents/**", ".augment/**"],
   "plugins": ["typescript", "react", "react-hooks", "jsx-a11y"],
   "rules": {
+    "jsx-a11y/control-has-associated-label": "off",
     "no-console": "warn",
+    "no-await-in-loop": "off",
     "react/jsx-filename-extension": "off",
     "react/react-in-jsx-scope": "off"
   }
