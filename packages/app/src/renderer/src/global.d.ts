@@ -5,6 +5,7 @@ import type {
   OrchestratorAgentEvent,
   OrchestratorAgentSessionRequest,
 } from "./services/agent-orchestrator";
+import type { AuthStatusResult, GitHubDeviceFlow, GitHubDevicePollResult } from "./services/auth";
 import type {
   NarrativeAgentController,
   NarrativeAgentEvent,
@@ -16,9 +17,16 @@ declare global {
     electronAPI: {
       platform: NodeJS.Platform;
     };
-    reviewAppSettings: {
+    reviewAppAuth: {
       getGitHubToken: () => Promise<string>;
-      setGitHubToken: (token: string) => Promise<void>;
+      getStatus: () => Promise<AuthStatusResult>;
+      pollDeviceFlow: (deviceCode: string) => Promise<GitHubDevicePollResult>;
+      signOut: () => Promise<void>;
+      startDeviceFlow: () => Promise<GitHubDeviceFlow>;
+    };
+    reviewAppRepos: {
+      clone: (fullName: string) => Promise<string | null>;
+      locate: () => Promise<string | null>;
     };
     reviewAppNarrative: {
       generate: (

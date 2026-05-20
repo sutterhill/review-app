@@ -5,8 +5,9 @@ import type {
   PullRequestFile,
   PullRequestFileStatus,
   PullRequestMetadata,
+  PullRequestSummary,
 } from "../store/pr/pr-types";
-import { getGitHubToken } from "./settings";
+import { getGitHubToken } from "./auth";
 
 const GITHUB_API_BASE_URL = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -35,6 +36,19 @@ interface GitHubPullResponse {
   number?: number;
   requested_reviewers?: GitHubUserResponse[];
   state?: "closed" | "open";
+  title?: string;
+  updated_at?: string;
+  user?: GitHubUserResponse | null;
+}
+
+interface GitHubIssueSearchResponse {
+  items?: GitHubIssueSearchItem[];
+}
+
+interface GitHubIssueSearchItem {
+  html_url?: string;
+  number?: number;
+  repository_url?: string;
   title?: string;
   updated_at?: string;
   user?: GitHubUserResponse | null;
@@ -83,7 +97,7 @@ export const fetchPullRequestFromGitHub = async (reference: string): Promise<Pul
   const token = await getGitHubToken();
 
   if (token.length === 0) {
-    throw new GitHubApiError("auth_failed", "Configure a GitHub personal access token first.", 401);
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
   }
 
   const pullPath = createPullPath(pullReference);
@@ -98,6 +112,28 @@ export const fetchPullRequestFromGitHub = async (reference: string): Promise<Pul
     files,
     metadata: toPullRequestMetadata(reference, pullReference, pull),
   };
+};
+
+export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSummary[]> => {
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const user = await requestGitHub<GitHubUserResponse>("/user", token);
+
+  if (!user.login) {
+    throw new GitHubApiError("network", "GitHub user profile did not include a login.");
+  }
+
+  const query = encodeURIComponent(`is:pr is:open author:${user.login}`);
+  const search = await requestGitHub<GitHubIssueSearchResponse>(
+    `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
+    token,
+  );
+
+  return (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
 };
 
 const fetchPullRequestFiles = async (
@@ -215,6 +251,43 @@ const toPullRequestFile = (file: GitHubFileResponse): PullRequestFile => ({
   previousFilename: file.previous_filename,
   status: normalizeFileStatus(file.status),
 });
+
+const toPullRequestSummary = (item: GitHubIssueSearchItem): PullRequestSummary | null => {
+  const repository = parseRepositoryUrl(item.repository_url);
+
+  if (!repository || !item.number) {
+    return null;
+  }
+
+  return {
+    author: toGitHubAccount(item.user),
+    htmlUrl: item.html_url ?? "",
+    number: item.number,
+    owner: repository.owner,
+    reference: `${repository.owner}/${repository.repo}#${item.number}`,
+    repo: repository.repo,
+    repositoryName: `${repository.owner}/${repository.repo}`,
+    title: item.title ?? "Untitled pull request",
+    updatedAt: item.updated_at ?? "",
+  };
+};
+
+const parseRepositoryUrl = (repositoryUrl: string | undefined): PullRequestReference | null => {
+  const match = repositoryUrl?.match(/\/repos\/([^/]+)\/([^/]+)$/u);
+
+  if (!match?.[1] || !match[2]) {
+    return null;
+  }
+
+  return {
+    number: 0,
+    owner: decodeURIComponent(match[1]),
+    repo: decodeURIComponent(match[2]),
+  };
+};
+
+const isPullRequestSummary = (summary: PullRequestSummary | null): summary is PullRequestSummary =>
+  summary !== null;
 
 const normalizeFileStatus = (status: string | undefined): PullRequestFileStatus => {
   if (status === "added" || status === "modified" || status === "renamed") {

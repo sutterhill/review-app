@@ -16,10 +16,10 @@ describe("prReducer", () => {
     expect(state.error).toBeNull();
   });
 
-  it("does not store the raw token when saving settings", () => {
-    const state = prReducer(undefined, prActions.saveGitHubToken("secret-token"));
+  it("tracks open pull request loading separately", () => {
+    const state = prReducer(undefined, prActions.fetchOpenPullRequests());
 
-    expect(state.hasGitHubToken).toBe(true);
-    expect(JSON.stringify(state)).not.toContain("secret-token");
+    expect(state.openPullRequestsStatus).toBe("loading");
+    expect(state.openPullRequestsError).toBeNull();
   });
 });
