@@ -1,0 +1,9 @@
+name = "review-app-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-20"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "review-app-db"
+database_id = "review-app-db"
+migrations_dir = "migrations"
