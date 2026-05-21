@@ -127,7 +127,7 @@ export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSumm
     throw new GitHubApiError("network", "GitHub user profile did not include a login.");
   }
 
-  const query = encodeURIComponent(`is:pr is:open author:${user.login}`);
+  const query = encodeURIComponent(`is:pr is:open review-requested:${user.login}`);
   const search = await requestGitHub<GitHubIssueSearchResponse>(
     `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
     token,
