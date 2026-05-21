@@ -146,38 +146,93 @@ const countDiffRows = (patch: string): number => {
   return total;
 };
 
+const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/u;
+
+const isHeaderLine = (line: string): boolean =>
+  line.startsWith("diff ") ||
+  line.startsWith("--- ") ||
+  line.startsWith("+++ ") ||
+  line.startsWith("index ") ||
+  line.startsWith("new file mode") ||
+  line.startsWith("deleted file mode") ||
+  line.startsWith("old mode") ||
+  line.startsWith("new mode") ||
+  line.startsWith("similarity index") ||
+  line.startsWith("dissimilarity index") ||
+  line.startsWith("rename ") ||
+  line.startsWith("copy ") ||
+  line.startsWith("Binary ");
+
+/**
+ * Truncates a unified diff to at most `maxRows` change/context rows while
+ * keeping the patch syntactically valid. We prefer to drop whole hunks, but
+ * if the first hunk alone exceeds the budget we trim its body and rewrite
+ * the `@@ -a,b +c,d @@` header to match the kept line counts so downstream
+ * parsers (and Shiki via @pierre/diffs) still tokenize the file as code
+ * rather than falling back to plain text on a malformed patch.
+ */
 const truncatePatch = (patch: string, maxRows: number): string => {
   if (!patch) return "";
   const lines = patch.split("\n");
-  const kept: string[] = [];
-  let rowCount = 0;
+  const fileHeader: string[] = [];
+  const hunks: { header: string; body: string[] }[] = [];
+  let current: { header: string; body: string[] } | null = null;
   for (const line of lines) {
-    if (
-      line.startsWith("diff ") ||
-      line.startsWith("--- ") ||
-      line.startsWith("+++ ") ||
-      line.startsWith("index ") ||
-      line.startsWith("new file mode") ||
-      line.startsWith("deleted file mode") ||
-      line.startsWith("similarity index") ||
-      line.startsWith("rename ") ||
-      line.startsWith("Binary ")
-    ) {
-      kept.push(line);
-      continue;
-    }
-    if (rowCount >= maxRows) break;
     if (line.startsWith("@@")) {
-      kept.push(line);
-      rowCount++;
-      continue;
-    }
-    if (line[0] === "+" || line[0] === "-" || line[0] === " ") {
-      kept.push(line);
-      rowCount++;
-    } else if (line.length === 0) {
-      kept.push(line);
+      current = { header: line, body: [] };
+      hunks.push(current);
+    } else if (current) {
+      current.body.push(line);
+    } else if (isHeaderLine(line) || line.length === 0) {
+      fileHeader.push(line);
     }
   }
-  return kept.join("\n");
+  const out: string[] = [...fileHeader];
+  let rowsUsed = 0;
+  for (const hunk of hunks) {
+    const bodyRows = hunk.body.filter(
+      (line) => line[0] === "+" || line[0] === "-" || line[0] === " ",
+    ).length;
+    const budget = maxRows - rowsUsed;
+    if (budget <= 1) break;
+    if (bodyRows + 1 <= budget) {
+      out.push(hunk.header, ...hunk.body);
+      rowsUsed += bodyRows + 1;
+      continue;
+    }
+    const keptBody: string[] = [];
+    let oldKept = 0;
+    let newKept = 0;
+    let kept = 0;
+    for (const line of hunk.body) {
+      if (kept >= budget - 1) break;
+      const tag = line[0];
+      if (tag === "+") {
+        keptBody.push(line);
+        newKept++;
+        kept++;
+      } else if (tag === "-") {
+        keptBody.push(line);
+        oldKept++;
+        kept++;
+      } else if (tag === " ") {
+        keptBody.push(line);
+        oldKept++;
+        newKept++;
+        kept++;
+      }
+    }
+    const match = HUNK_HEADER_RE.exec(hunk.header);
+    let header = hunk.header;
+    if (match) {
+      const oldStart = match[1];
+      const newStart = match[3];
+      const trailing = match[5] ?? "";
+      header = `@@ -${oldStart},${oldKept} +${newStart},${newKept} @@${trailing}`;
+    }
+    out.push(header, ...keptBody);
+    rowsUsed += kept + 1;
+    break;
+  }
+  return out.join("\n");
 };
