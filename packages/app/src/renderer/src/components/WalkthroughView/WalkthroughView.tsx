@@ -66,6 +66,11 @@ export const WalkthroughView = ({
     () => new Set((activeStep?.step.relevantFiles ?? []).map((file) => file.path)),
     [activeStep],
   );
+  const filesByPath = useMemo<ReadonlyMap<string, (typeof pullRequest.files)[number]>>(() => {
+    const map = new Map<string, (typeof pullRequest.files)[number]>();
+    for (const file of pullRequest.files) map.set(file.filename, file);
+    return map;
+  }, [pullRequest.files]);
   const stepEmphasis = useMemo<Record<string, LineRange[]>>(() => {
     const map: Record<string, LineRange[]> = {};
     for (const file of activeStep?.step.relevantFiles ?? []) {
@@ -100,7 +105,7 @@ export const WalkthroughView = ({
             <DescriptionSkeleton />
           )}
         </div>
-        <div className="flex flex-col gap-6" aria-label="Walkthrough steps">
+        <div className="flex flex-col gap-12" aria-label="Walkthrough steps">
           {allSteps.length === 0 && isStreaming ? (
             <>
               <StepSkeleton />
@@ -118,6 +123,7 @@ export const WalkthroughView = ({
                 </p>
               ) : null}
               <WalkthroughStep
+                filesByPath={filesByPath}
                 index={index}
                 isActive={key === activeStepKey}
                 onRefClick={handleRefClick}

@@ -1,16 +1,17 @@
 import { useMemo } from "react";
 
-import { cn } from "@/lib/utils";
-
+import type { PullRequestFile } from "../../store/pr/pr-types";
 import type {
   LineRange,
   WalkthroughFileRef,
   WalkthroughStep as WalkthroughStepData,
 } from "../../store/walkthrough/walkthrough-types";
+import { FileSnippet } from "./FileSnippet";
 import { parseInlineNodes, type InlineNode } from "./inline-refs";
 import { normalizeLineRanges } from "./normalize-line-ranges";
 
 interface WalkthroughStepProps {
+  filesByPath: ReadonlyMap<string, PullRequestFile>;
   index: number;
   isActive: boolean;
   onRefClick: (path: string, lineRanges: LineRange[]) => void;
@@ -18,8 +19,8 @@ interface WalkthroughStepProps {
 }
 
 export const WalkthroughStep = ({
+  filesByPath,
   index,
-  isActive,
   onRefClick,
   step,
 }: WalkthroughStepProps): React.JSX.Element => {
@@ -29,22 +30,23 @@ export const WalkthroughStep = ({
   return (
     <section
       aria-labelledby={headingId}
-      className={cn(
-        "scroll-mt-6 flex flex-col gap-3 border-l-2 pl-4 transition-colors",
-        isActive ? "border-primary" : "border-transparent",
-      )}
+      className="scroll-mt-6 flex flex-col gap-4"
       data-step-index={index}
     >
       <h3 className="text-base font-semibold leading-tight text-foreground" id={headingId}>
         {step.heading}
       </h3>
-      <div className="flex flex-col gap-3 text-sm leading-7 text-foreground">
+      <div className="flex flex-col gap-4 text-[1.02rem] font-light leading-snug text-foreground">
         {paragraphs.map((paragraph) => (
           <ParagraphRenderer key={paragraph.key} nodes={paragraph.nodes} onRefClick={onRefClick} />
         ))}
       </div>
       {step.relevantFiles && step.relevantFiles.length > 0 ? (
-        <RelevantFileChips files={step.relevantFiles} onRefClick={onRefClick} />
+        <RelevantFileSnippets
+          files={step.relevantFiles}
+          filesByPath={filesByPath}
+          onRefClick={onRefClick}
+        />
       ) : null}
     </section>
   );
@@ -68,19 +70,15 @@ const ParagraphRenderer = ({
         return <TextSpan key={node.id} text={node.text} />;
       }
       const ranges = normalizeLineRanges(node.lineRanges);
-      const label = node.symbol
-        ? `${node.path}:${node.symbol}`
-        : ranges.length > 0
-          ? `${node.path}${formatLineRanges(ranges)}`
-          : node.path;
+      const fileName = node.path.split("/").pop() ?? node.path;
       return (
         <button
-          className="mx-0.5 cursor-pointer rounded-md border bg-muted/50 px-1 py-0.5 font-mono text-[0.85em] text-primary underline-offset-2 hover:bg-muted hover:underline"
+          className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline"
           key={node.id}
           onClick={() => onRefClick(node.path, ranges)}
           type="button"
         >
-          {label}
+          {fileName}
         </button>
       );
     })}
@@ -107,28 +105,31 @@ const TextSpan = ({ text }: { text: string }): React.JSX.Element => {
   );
 };
 
-const RelevantFileChips = ({
+const RelevantFileSnippets = ({
   files,
+  filesByPath,
   onRefClick,
 }: {
   files: WalkthroughFileRef[];
+  filesByPath: ReadonlyMap<string, PullRequestFile>;
   onRefClick: (path: string, lineRanges: LineRange[]) => void;
 }): React.JSX.Element => {
   const items = useMemo(() => buildRelevantItems(files), [files]);
   return (
-    <ul aria-label="Relevant files for this step" className="flex flex-wrap gap-1.5">
-      {items.map((item) => (
-        <li key={item.id}>
-          <button
-            className="rounded-full border bg-card px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground hover:border-primary/40 hover:text-foreground"
-            onClick={() => onRefClick(item.path, item.ranges)}
-            type="button"
-          >
-            {item.path}
-            {item.ranges.length > 0 ? formatLineRanges(item.ranges) : null}
-          </button>
-        </li>
-      ))}
+    <ul aria-label="Relevant files for this step" className="flex flex-col gap-4">
+      {items.map((item) => {
+        const file = filesByPath.get(item.path);
+        return (
+          <li key={item.id}>
+            <FileSnippet
+              lineRanges={item.ranges}
+              onClick={() => onRefClick(item.path, item.ranges)}
+              patch={file?.patch ?? ""}
+              path={item.path}
+            />
+          </li>
+        );
+      })}
     </ul>
   );
 };
@@ -195,13 +196,6 @@ const splitInlineCode = (text: string): InlineCodePart[] => {
   }
   return parts;
 };
-
-const formatLineRanges = (ranges: LineRange[]): string =>
-  ranges.length > 0
-    ? `#${ranges
-        .map(([start, end]) => (start === end ? `L${start}` : `L${start}-${end}`))
-        .join(",")}`
-    : "";
 
 const hashString = (input: string): string => {
   let hash = 0;
