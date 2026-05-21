@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { buildWalkthroughSections, splitProseAndDiffs } from "./walkthrough-parser";
+import { splitIntoChunks, type WalkthroughChunk } from "./walkthrough-parser";
 
 interface WalkthroughViewProps {
   onFileClick?: (path: string) => void;
@@ -13,13 +13,10 @@ export const WalkthroughView = ({
   onFileClick,
   walkthrough,
 }: WalkthroughViewProps): React.JSX.Element => {
-  const sections = useMemo(() => buildWalkthroughSections(walkthrough), [walkthrough]);
-  const splitSections = useMemo(
-    () => sections.map((section) => ({ ...section, ...splitProseAndDiffs(section.markdown) })),
-    [sections],
-  );
+  const allChunks = useMemo(() => splitIntoChunks(walkthrough), [walkthrough]);
+  const rows = useMemo(() => buildChunkRows(allChunks), [allChunks]);
 
-  if (sections.length === 0) {
+  if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         Generate a walkthrough to see the guided walkthrough.
@@ -29,22 +26,28 @@ export const WalkthroughView = ({
 
   return (
     <div className="flex flex-col gap-5" aria-label="Pull request walkthrough">
-      {splitSections.map((section, index) => {
-        const headingOffset = splitSections
+      {rows.map((row, index) => {
+        const headingOffset = rows
           .slice(0, index)
-          .reduce((count, previousSection) => count + countHeadings(previousSection.prose), 0);
+          .reduce((count, previousRow) => count + countHeadings(previousRow.prose), 0);
 
-        if (section.diffs.length > 0) {
+        if (row.diffs.length > 0) {
           return (
-            <div className="grid grid-cols-[minmax(0,70ch)_minmax(0,1fr)] gap-6" key={section.id}>
+            <div
+              className="grid grid-cols-[minmax(0,65ch)_minmax(0,1fr)] items-start gap-6"
+              key={row.id}
+            >
               <WalkthroughMarkdown
                 headingOffset={headingOffset}
-                markdown={section.prose}
+                markdown={row.prose}
                 onFileClick={onFileClick}
               />
-              <div className="sticky top-4 flex flex-col gap-3 self-start">
-                {section.diffs.map((diff) => (
-                  <div className="flex flex-col gap-1" key={`${diff.label ?? "diff"}:${diff.code}`}>
+              <div className="flex flex-col gap-3">
+                {row.diffs.map((diff) => (
+                  <div
+                    className="flex flex-col gap-1"
+                    key={`${diff.label ?? "diff"}:${diff.code.slice(0, 40)}`}
+                  >
                     {diff.label ? (
                       <p className="text-xs italic text-muted-foreground">{diff.label}</p>
                     ) : null}
@@ -59,8 +62,8 @@ export const WalkthroughView = ({
         return (
           <WalkthroughMarkdown
             headingOffset={headingOffset}
-            key={section.id}
-            markdown={section.prose}
+            key={row.id}
+            markdown={row.prose}
             onFileClick={onFileClick}
           />
         );
@@ -68,6 +71,46 @@ export const WalkthroughView = ({
     </div>
   );
 };
+
+interface ChunkRow {
+  diffs: { code: string; label?: string }[];
+  id: string;
+  prose: string;
+}
+
+const buildChunkRows = (chunks: WalkthroughChunk[]): ChunkRow[] => {
+  const rows: ChunkRow[] = [];
+  let currentProse = "";
+  let currentDiffs: { code: string; label?: string }[] = [];
+
+  for (const chunk of chunks) {
+    if (chunk.type === "prose") {
+      if (currentProse || currentDiffs.length > 0) {
+        rows.push(buildChunkRow(currentProse, currentDiffs, rows.length));
+        currentDiffs = [];
+      }
+      currentProse = chunk.markdown;
+    } else {
+      currentDiffs.push({ code: chunk.code, label: chunk.label });
+    }
+  }
+
+  if (currentProse || currentDiffs.length > 0) {
+    rows.push(buildChunkRow(currentProse, currentDiffs, rows.length));
+  }
+
+  return rows;
+};
+
+const buildChunkRow = (
+  prose: string,
+  diffs: { code: string; label?: string }[],
+  position: number,
+): ChunkRow => ({
+  diffs: [...diffs],
+  id: `${prose.slice(0, 40)}:${diffs.map((diff) => diff.label ?? diff.code.slice(0, 40)).join("|")}:${position}`,
+  prose,
+});
 
 const WalkthroughMarkdown = ({
   headingOffset,

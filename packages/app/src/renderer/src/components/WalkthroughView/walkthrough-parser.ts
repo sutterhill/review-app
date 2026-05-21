@@ -9,6 +9,10 @@ export interface WalkthroughHeading {
   text: string;
 }
 
+export type WalkthroughChunk =
+  | { markdown: string; type: "prose" }
+  | { code: string; label?: string; type: "diff" };
+
 export const buildWalkthroughSections = (walkthrough: string): WalkthroughSection[] =>
   splitWalkthroughBlocks(walkthrough).map((markdown, index) => ({
     id: `walkthrough-${index}`,
@@ -26,6 +30,68 @@ export const extractWalkthroughHeadings = (walkthrough: string): WalkthroughHead
     }
   }
   return headings;
+};
+
+export const splitIntoChunks = (markdown: string): WalkthroughChunk[] => {
+  const chunks: WalkthroughChunk[] = [];
+  const proseLines: string[] = [];
+  let currentDiff: { label?: string; lines: string[] } | null = null;
+  let inOtherCodeFence = false;
+
+  const flushProse = (): void => {
+    const text = proseLines
+      .join("\n")
+      .trim()
+      .replace(/\n{3,}/gu, "\n\n");
+    if (text.length > 0) {
+      chunks.push({ markdown: text, type: "prose" });
+    }
+    proseLines.length = 0;
+  };
+
+  for (const line of markdown.split("\n")) {
+    const trimmed = line.trim();
+
+    if (currentDiff !== null) {
+      if (trimmed === "```") {
+        flushProse();
+        chunks.push({ code: currentDiff.lines.join("\n"), label: currentDiff.label, type: "diff" });
+        currentDiff = null;
+      } else {
+        currentDiff.lines.push(line);
+      }
+      continue;
+    }
+
+    if (!inOtherCodeFence && trimmed.startsWith("```diff")) {
+      const previousLine = proseLines.at(-1);
+      const labelMatch =
+        previousLine?.trim().match(/^\*(.+)\*$/u) ?? previousLine?.trim().match(/^_(.+)_$/u);
+      const label = labelMatch?.[1]?.trim();
+      if (label) {
+        proseLines.pop();
+      }
+      currentDiff = { label, lines: [] };
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      inOtherCodeFence = !inOtherCodeFence;
+    }
+
+    proseLines.push(line);
+  }
+
+  if (currentDiff !== null) {
+    if (currentDiff.label) {
+      proseLines.push(`*${currentDiff.label}*`);
+    }
+    proseLines.push("```diff");
+    proseLines.push(...currentDiff.lines);
+  }
+
+  flushProse();
+  return chunks;
 };
 
 const splitWalkthroughBlocks = (walkthrough: string): string[] => {
