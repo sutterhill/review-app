@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import type { LineRange } from "../../store/walkthrough/walkthrough-types";
-import { overlapsRanges, parsePatchForMinimap, type MinimapSegment } from "./minimap-utils";
+import { parsePatchForMinimap, type MinimapSegment } from "./minimap-utils";
 
 interface FileDiffMinimapProps {
   active?: boolean;
@@ -18,19 +18,15 @@ const BAR_HEIGHT_PX = 3;
 const BAR_GAP_PX = 2;
 const PADDING_X_PX = 6;
 const PADDING_Y_PX = 6;
-const ADDITION_COLOR = "#E9F5E8";
-const DELETION_COLOR = "#FFE9E7";
-const ADDITION_COLOR_EMPHASIZED = "#A7E0A4";
-const DELETION_COLOR_EMPHASIZED = "#F5BDB6";
+const ADDITION_COLOR = "#A7E0A4";
+const DELETION_COLOR = "#F5BDB6";
 
 export const FileDiffMinimap = ({
-  emphasizedRanges,
   fileLines,
   maxFileLines,
   patch,
 }: FileDiffMinimapProps): React.JSX.Element => {
   const data = useMemo(() => parsePatchForMinimap(patch), [patch]);
-  const hasEmphasis = !!emphasizedRanges && emphasizedRanges.length > 0;
   const visibleSegments = data.segments.filter((segment) => segment.kind !== "context");
   const ratio = maxFileLines > 0 ? Math.min(fileLines / maxFileLines, 1) : 0;
   const height = Math.max(MIN_HEIGHT_PX, Math.round(ratio * MAX_HEIGHT_PX));
@@ -55,7 +51,6 @@ export const FileDiffMinimap = ({
       ) : (
         visibleSegments.map((segment) => (
           <MinimapSegmentBar
-            emphasized={hasEmphasis && overlapsRanges(segment, emphasizedRanges ?? [])}
             key={segment.id}
             lineSlot={lineSlot}
             paddingX={PADDING_X_PX}
@@ -71,7 +66,6 @@ export const FileDiffMinimap = ({
 };
 
 interface MinimapSegmentBarProps {
-  emphasized: boolean;
   lineSlot: number;
   paddingX: number;
   paddingY: number;
@@ -81,7 +75,6 @@ interface MinimapSegmentBarProps {
 }
 
 const MinimapSegmentBar = ({
-  emphasized,
   lineSlot,
   paddingX,
   paddingY,
@@ -96,16 +89,14 @@ const MinimapSegmentBar = ({
     paddingY +
     Math.min(Math.max(positionalTop, slotTop * 0.35), Math.max(usableHeight - BAR_HEIGHT_PX, 0));
   const widthPct = segment.widthRatio * 100;
-  const baseColor = segment.kind === "addition" ? ADDITION_COLOR : DELETION_COLOR;
-  const emphasizedColor =
-    segment.kind === "addition" ? ADDITION_COLOR_EMPHASIZED : DELETION_COLOR_EMPHASIZED;
+  const color = segment.kind === "addition" ? ADDITION_COLOR : DELETION_COLOR;
 
   return (
     <div
       aria-hidden="true"
       className="absolute rounded-[1px]"
       style={{
-        backgroundColor: emphasized ? emphasizedColor : baseColor,
+        backgroundColor: color,
         height: `${BAR_HEIGHT_PX}px`,
         left: `${paddingX}px`,
         maxWidth: `calc(100% - ${paddingX * 2}px)`,

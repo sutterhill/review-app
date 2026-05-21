@@ -28,9 +28,9 @@ export const FileMasonryCard = ({
     <button
       aria-label={`Open ${file.filename} diff`}
       className={cn(
-        "group relative flex flex-col gap-2 rounded-md bg-transparent p-1 text-left transition-colors",
+        "group relative flex flex-col gap-2 rounded-md border border-transparent p-1 text-left transition-colors",
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        relevant && "bg-muted/50",
+        relevant && "border-foreground/40",
       )}
       onClick={() => onClick(file.filename)}
       style={{ width: 150 }}
@@ -44,12 +44,7 @@ export const FileMasonryCard = ({
         patch={file.patch}
       />
       <div className="flex min-w-0 flex-col gap-0.5 px-1">
-        <span
-          className={cn(
-            "min-w-0 truncate text-[0.78rem] font-medium",
-            relevant ? "text-foreground" : "text-foreground/80",
-          )}
-        >
+        <span className="min-w-0 truncate text-[0.78rem] font-medium text-foreground">
           {fileName}
         </span>
       </div>
