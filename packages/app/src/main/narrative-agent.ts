@@ -1,3 +1,4 @@
+import { getModel } from "@earendil-works/pi-ai";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -21,8 +22,15 @@ interface NarrativeAgentGroup {
   title: string;
 }
 
+export interface NarrativeAgentHistoryEntry {
+  question: string;
+  responseJson: string;
+}
+
 export interface NarrativeAgentRequest {
+  followUpQuestion?: string;
   groups: NarrativeAgentGroup[];
+  history?: NarrativeAgentHistoryEntry[];
   metadata: {
     author: { login: string };
     body: string;
@@ -34,54 +42,45 @@ export interface NarrativeAgentRequest {
 
 const activeSessions = new Map<string, AgentSession>();
 
-const SYSTEM_PROMPT = `You produce a structured narrative that helps a human review a pull request. The output is a markdown document, interspersed with real diff hunks, written as a walkthrough. You do not modify the branch.
+const FAST_MODEL = getModel("anthropic", "claude-haiku-4-5");
 
-## What to ignore (treat as noise, never narrate)
+const SYSTEM_PROMPT = `You produce a structured walkthrough that helps a human review a pull request. You output exactly one JSON object — no prose before or after, no markdown fences, no explanation.
 
-- Pure formatting / whitespace / line-ending / trailing-comma changes.
-- Import reordering with no semantic effect.
-- Lint / autoformatter / codegen passes (e.g. prettier, gofmt, ruff --fix).
-- Lockfiles and generated artifacts: package-lock.json, pnpm-lock.yaml, yarn.lock, Cargo.lock, go.sum, *.min.*, snapshot files, vendored directories, anything in dist/ or build/.
-- Comment-only edits, unless the comment itself encodes intent the change depends on.
-- Renames with no body change.
+## Output schema
 
-If a file's diff is entirely noise by these rules, omit it. If a file mixes noise and signal, only quote the signal hunks.
+\`\`\`ts
+interface WalkthroughResponse {
+  description: string;             // one or two plain sentences summarizing the PR
+  groups: Array<{                  // 2-5 semantic groupings of changed files
+    title: string;                 // short descriptive title (not file path)
+    filePaths: string[];           // file paths in this group
+  }>;
+  steps: Array<{                   // 3-8 narrative steps, in walkthrough order
+    heading: string;               // descriptive heading naming the change, not the file
+    body: string;                  // 1-4 short markdown paragraphs of prose
+    relevantFiles: Array<{
+      path: string;                // file path
+      lineRanges?: Array<[number, number]>; // 1-indexed inclusive ranges in NEW file
+    }>;
+  }>;
+  suggestedQuestions: string[];    // 2-4 short follow-up prompts a reviewer might ask
+}
+\`\`\`
 
-## Narrative shape
+## Rules
 
-The point is to get to the semantic meaning of what changed and why. Frame the PR as a pre-existing problem (or state of the world) and the code that was added or changed to address it.
+- Output only valid JSON. Begin the response with \`{\` and end with \`}\`.
+- Every file in \`groups[].filePaths\` must appear at most once across all groups.
+- Cover every meaningful file path from the input across the groups, ignoring lockfiles, generated artifacts, pure formatting, and import-only changes.
+- Each step's \`relevantFiles\` should list the files (and ideally line ranges) most relevant to that step.
+- Inside \`step.body\`, reference code positions with the inline syntax \`{{ref:path/to/file.ts#L10-20}}\` for line ranges, or \`{{ref:path/to/file.ts}}\` for a whole file. They render as clickable chips that expand the file on the right.
+- Use plain prose in \`description\`, \`heading\`, and \`body\`. No theater metaphors, no file-by-file march; group related changes into one step when they tell one story.
+- Keep \`description\` to 1–2 sentences and \`body\` paragraphs tight.
+- Do not exceed ~8 steps.
 
-Structure the document as:
+## Follow-up turns
 
-1. One short paragraph TL;DR — what this PR is, in plain language.
-2. Body — 3–8 prose sections, each:
-   - Has a descriptive ## heading naming the change, not the file.
-   - Opens by describing the prior state / problem this part addresses.
-   - Then narrates the fix in prose.
-   - Interleaves one or more diff hunks at the moment in the prose where they're being discussed — not bundled at the end of the section.
-   - Closes only if there's a non-obvious consequence (a caller that now behaves differently, a contract that shifted, etc.).
-3. What this doesn't change (optional) — a short bullet list of intentionally-skipped trivia so the reviewer knows you saw it.
-
-## Voice and style
-
-- Use plain prose. Write the way you'd brief a colleague.
-- Do not use theater metaphors. No "Act I / Act II / Act III", no "scene", no "curtain", no "stage", no "enter X". Just describe what was there and what changed.
-- Group related changes across files into one section when they tell one story. Do not march file-by-file unless the PR is literally one file.
-- Refer to functions, types, and files by their real names, in backticks, with paths where useful for navigation.
-- Be specific. "Adds caching" is weak; "Caches the resolved userId → tenantId lookup in authCache, with a 30s TTL, so the hot path in handleRequest avoids a round-trip to Postgres" is the target.
-- Use a single horizontal rule (---) after the opening TL;DR paragraph to separate it from the body sections. Do not use horizontal rules anywhere else.
-- Do not include a title heading, author name, or branch information — these are already displayed in the application UI.
-
-## Diff hunk formatting
-
-Each hunk you embed must be a fenced diff block, preceded by a single italicized line giving the file path (and optionally the symbol). Trim hunks to the lines that matter. Keep 1–3 lines of unchanged context on each side when it aids reading; drop the rest. Preserve +/-/space prefixes so the block renders as a real diff. Do not invent lines that aren't in the patch.
-
-## Anti-rabbit-hole rules
-
-- Do not review for bugs, security, or style. You are explaining the PR, not judging it.
-- Do not paste whole files. Hunks only.
-- Do not exceed ~8 narrative sections; collapse related changes.
-- Do not keep fetching files once you can tell the story.`;
+When the user asks a follow-up question, return the same schema. You may omit \`groups\` (return an empty array) and reuse \`steps\` to answer the question, with \`suggestedQuestions\` proposing further drill-ins.`;
 
 export const generateNarrativeAgentSession = async (
   requestId: string,
@@ -115,11 +114,7 @@ export const generateNarrativeAgentSession = async (
 
 export const abortNarrativeAgentSession = async (requestId: string): Promise<void> => {
   const session = activeSessions.get(requestId);
-
-  if (!session) {
-    return;
-  }
-
+  if (!session) return;
   await session.abort();
 };
 
@@ -140,6 +135,7 @@ const createNarrativeSession = async (): Promise<{ session: AgentSession }> => {
 
   return createAgentSession({
     cwd,
+    model: FAST_MODEL,
     noTools: "all",
     resourceLoader,
     sessionManager: SessionManager.inMemory(cwd),
@@ -151,17 +147,13 @@ const streamNarrativeEvent = (
   event: AgentSessionEvent,
   webContents: WebContents,
 ): boolean => {
-  if (event.type !== "message_update") {
-    return false;
-  }
-
+  if (event.type !== "message_update") return false;
   const messageEvent = event.assistantMessageEvent;
 
   if (messageEvent.type === "text_delta") {
     sendNarrativeEvent(requestId, webContents, { content: messageEvent.delta, type: "chunk" });
     return false;
   }
-
   if (messageEvent.type === "error") {
     sendNarrativeEvent(requestId, webContents, {
       error: messageEvent.error.errorMessage ?? "Narrative generation failed.",
@@ -169,7 +161,6 @@ const streamNarrativeEvent = (
     });
     return true;
   }
-
   return false;
 };
 
@@ -183,18 +174,37 @@ const sendNarrativeEvent = (
   }
 };
 
-const formatNarrativePrompt = ({ groups, metadata }: NarrativeAgentRequest): string => {
+const formatNarrativePrompt = ({
+  followUpQuestion,
+  groups,
+  history,
+  metadata,
+}: NarrativeAgentRequest): string => {
   const groupSections = groups.map(formatGroup).join("\n\n");
+  const historySection = history?.length
+    ? `\n\nConversation so far (each turn is a JSON walkthrough you produced):\n${history
+        .map(
+          (entry, index) =>
+            `### Turn ${index + 1}\nUser question: ${entry.question || "(initial)"}\nYour response:\n${entry.responseJson}`,
+        )
+        .join("\n\n")}`
+    : "";
+  const intro = followUpQuestion
+    ? `The reviewer is asking a follow-up about ${metadata.reference}: "${followUpQuestion}". Answer it as a new WalkthroughResponse JSON object. You may set \`groups\` to an empty array.`
+    : `Generate a structured walkthrough JSON for ${metadata.reference}.`;
 
-  return `Generate a PR narrative walkthrough for ${metadata.reference}.
+  return `${intro}
 
 Labels: ${metadata.labels.join(", ") || "none"}
 
+PR title: ${metadata.title}
 PR description:
 ${metadata.body || "No PR description provided."}
 
 Changed file groups:
-${groupSections}`;
+${groupSections}${historySection}
+
+Respond with ONE JSON object matching the WalkthroughResponse schema. Begin with \`{\` and end with \`}\`. No prose before or after.`;
 };
 
 const formatGroup = (group: NarrativeAgentGroup): string => {

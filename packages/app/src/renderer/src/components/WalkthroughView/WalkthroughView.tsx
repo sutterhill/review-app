@@ -1,3 +1,4 @@
+import { GitPullRequest } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -88,10 +89,11 @@ export const WalkthroughView = ({
 
   return (
     <div className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-      <div className="flex flex-col gap-6 border-r px-6 py-6">
+      <div className="flex flex-col gap-6 border-r px-8 py-8">
+        <PullRequestHeader pullRequest={pullRequest} />
         <div aria-label="Walkthrough description" className="flex flex-col gap-2">
           {initialResponse?.description ? (
-            <p className="font-serif text-lg leading-snug text-foreground">
+            <p className="text-[0.95rem] leading-7 text-foreground">
               {initialResponse.description}
             </p>
           ) : (
@@ -183,4 +185,47 @@ const collectSteps = (
     });
   }
   return result;
+};
+
+const PullRequestHeader = ({
+  pullRequest,
+}: {
+  pullRequest: PullRequestData;
+}): React.JSX.Element => {
+  const { metadata } = pullRequest;
+  const initial = (metadata.author.login ?? "?").slice(0, 1).toUpperCase();
+  return (
+    <header className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3 text-[0.78rem] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 text-[var(--color-pr-accent,#7c3aed)]">
+          <GitPullRequest aria-hidden="true" className="size-3.5" />
+          <span className="font-medium">PR #{metadata.number}</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          {metadata.author.avatarUrl ? (
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-5 rounded-full border border-border bg-muted object-cover"
+              src={metadata.author.avatarUrl}
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="flex size-5 items-center justify-center rounded-full bg-muted text-[0.6rem] font-medium text-muted-foreground"
+            >
+              {initial}
+            </span>
+          )}
+          <span className="text-foreground">{metadata.author.login}</span>
+        </span>
+      </div>
+      <h1
+        className="font-serif text-[2.6rem] font-normal italic leading-[1.05] tracking-tight text-foreground"
+        style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}
+      >
+        {metadata.title}
+      </h1>
+    </header>
+  );
 };
