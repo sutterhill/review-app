@@ -135,7 +135,7 @@ export const PRLayout = (): React.JSX.Element => {
               className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
               to="diff"
             >
-              Diff
+              Changes
             </NavLink>
             <NavLink
               className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
