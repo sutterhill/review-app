@@ -5,6 +5,7 @@ import { usePRContext } from "../../routes/pr-context";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS } from "../diff-utils";
+import { FileDiffPanel } from "./FileDiffPanel";
 import { FileMasonryCard } from "./FileMasonryCard";
 import { FileOverlayPanel } from "./FileOverlayPanel";
 import { FollowUpComposer } from "./FollowUpComposer";
@@ -190,14 +191,12 @@ export const WalkthroughView = ({
         >
           <button
             aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
-            className="group hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
+            className="hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
             onKeyDown={handleResizeKeyDown}
             onMouseDown={handleResizeStart}
             style={{ gridColumn: "2 / 3", gridRow: "1 / -1" }}
             type="button"
-          >
-            <span className="h-full w-px bg-border transition-colors group-hover:bg-foreground/30" />
-          </button>
+          />
           {allSteps.length === 0 && isStreaming ? (
             <div className="flex flex-col gap-12 px-8 py-6 lg:col-start-1">
               <StepSkeleton />
@@ -212,35 +211,27 @@ export const WalkthroughView = ({
                 data-step-key={key}
                 ref={(element) => registerStep(key, element)}
               >
-                {message.kind === "follow-up" &&
-                index > 0 &&
-                allSteps[index - 1]?.message.id !== message.id ? (
-                  <p className="mb-3 text-xs text-muted-foreground italic">
-                    Follow-up: <span className="not-italic">{message.question}</span>
-                  </p>
-                ) : null}
-                <WalkthroughStep
-                  index={index}
-                  isActive={key === activeStepKey}
-                  onRefClick={handleRefClick}
-                  step={step}
-                />
+                <div className="sticky top-[8.5rem]">
+                  {message.kind === "follow-up" &&
+                  index > 0 &&
+                  allSteps[index - 1]?.message.id !== message.id ? (
+                    <p className="mb-3 text-xs text-muted-foreground italic">
+                      Follow-up: <span className="not-italic">{message.question}</span>
+                    </p>
+                  ) : null}
+                  <WalkthroughStep
+                    index={index}
+                    isActive={key === activeStepKey}
+                    onRefClick={handleRefClick}
+                    step={step}
+                  />
+                </div>
               </div>
               <div className="px-4 py-6 lg:col-start-3">
                 {stepFiles[key] && stepFiles[key].length > 0 ? (
-                  <div
-                    aria-label="Files referenced in this step"
-                    className="flex flex-wrap items-start gap-3"
-                  >
+                  <div aria-label="Files referenced in this step" className="flex flex-col gap-6">
                     {stepFiles[key].map((file) => (
-                      <FileMasonryCard
-                        active={selectedPath === file.filename}
-                        file={file}
-                        key={file.filename}
-                        maxFileLines={maxFileLines}
-                        onClick={setSelectedPath}
-                        relevant
-                      />
+                      <FileDiffPanel file={file} key={file.filename} onOpen={setSelectedPath} />
                     ))}
                   </div>
                 ) : null}
