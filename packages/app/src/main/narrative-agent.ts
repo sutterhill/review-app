@@ -71,6 +71,7 @@ Do not include a title heading, author name, or branch information — these are
 - Group related changes across files into one section when they tell one story. Do not march file-by-file unless the PR is literally one file.
 - Refer to functions, types, and files by their real names, in backticks, with paths where useful for navigation.
 - Be specific. "Adds caching" is weak; "Caches the resolved userId → tenantId lookup in authCache, with a 30s TTL, so the hot path in handleRequest avoids a round-trip to Postgres" is the target.
+- Use a single horizontal rule (---) after the opening TL;DR paragraph to separate it from the body sections. Do not use horizontal rules anywhere else.
 
 ## Diff hunk formatting
 
