@@ -5,6 +5,7 @@ import { usePRContext } from "../../routes/pr-context";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS } from "../diff-utils";
+import { parseUnifiedDiff } from "../DiffView/diff-parser";
 import { FileDiffPanel } from "./FileDiffPanel";
 import { FileMasonryCard } from "./FileMasonryCard";
 import { FileOverlayPanel } from "./FileOverlayPanel";
@@ -66,6 +67,15 @@ export const WalkthroughView = ({
     for (const file of pullRequest.files) map.set(file.filename, file);
     return map;
   }, [pullRequest.files]);
+
+  const patchByPath = useMemo<ReadonlyMap<string, string>>(() => {
+    const parsed = parseUnifiedDiff(pullRequest.diff, pullRequest.files);
+    const map = new Map<string, string>();
+    for (const entry of parsed) {
+      if (entry.patch) map.set(entry.path, entry.patch);
+    }
+    return map;
+  }, [pullRequest.diff, pullRequest.files]);
 
   const maxFileLines = useMemo(
     () =>
@@ -231,7 +241,12 @@ export const WalkthroughView = ({
                 {stepFiles[key] && stepFiles[key].length > 0 ? (
                   <div aria-label="Files referenced in this step" className="flex flex-col gap-6">
                     {stepFiles[key].map((file) => (
-                      <FileDiffPanel file={file} key={file.filename} onOpen={setSelectedPath} />
+                      <FileDiffPanel
+                        file={file}
+                        key={file.filename}
+                        onOpen={setSelectedPath}
+                        patch={patchByPath.get(file.filename) ?? ""}
+                      />
                     ))}
                   </div>
                 ) : null}

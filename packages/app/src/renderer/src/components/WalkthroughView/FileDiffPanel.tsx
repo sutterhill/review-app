@@ -1,4 +1,4 @@
-import { PatchDiff, type PatchDiffProps } from "@pierre/diffs/react";
+import { PatchDiff } from "@pierre/diffs/react";
 import { useMemo, useState } from "react";
 
 import type { PullRequestFile } from "../../store/pr/pr-types";
@@ -7,33 +7,24 @@ import { DIFF_OPTIONS } from "../diff-utils";
 interface FileDiffPanelProps {
   file: PullRequestFile;
   onOpen: (path: string) => void;
+  patch: string;
 }
 
 const COLLAPSED_LINES = 20;
 const LINE_HEIGHT_PX = 20;
 
-type SnippetOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
-
-const SNIPPET_DIFF_OPTIONS: SnippetOptions = {
-  ...DIFF_OPTIONS,
-  disableFileHeader: true,
-  overflow: "scroll",
-  stickyHeader: false,
-};
-
-export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.Element => {
+export const FileDiffPanel = ({ file, onOpen, patch }: FileDiffPanelProps): React.JSX.Element => {
   const [expanded, setExpanded] = useState(false);
   const fileName = file.filename.split("/").pop() ?? file.filename;
   const directory = file.filename
     .slice(0, file.filename.length - fileName.length)
     .replace(/\/$/, "");
-  const fullPatch = useMemo(() => wrapPatch(file), [file]);
-  const totalLines = useMemo(() => countDiffRows(file.patch), [file.patch]);
+  const totalLines = useMemo(() => countDiffRows(patch), [patch]);
   const overflows = totalLines > COLLAPSED_LINES;
   const collapsedHeight = COLLAPSED_LINES * LINE_HEIGHT_PX;
   const hiddenCount = Math.max(totalLines - COLLAPSED_LINES, 0);
 
-  if (!file.patch) {
+  if (!patch) {
     return (
       <article className="flex flex-col gap-2 rounded-md">
         <FileNameHeader directory={directory} fileName={fileName} file={file} onOpen={onOpen} />
@@ -46,12 +37,10 @@ export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.E
     <article className="flex flex-col gap-2 rounded-md">
       <FileNameHeader directory={directory} fileName={fileName} file={file} onOpen={onOpen} />
       <div
-        className="relative overflow-auto whitespace-pre rounded-md border border-border/40"
-        style={{
-          height: expanded ? totalLines * LINE_HEIGHT_PX + LINE_HEIGHT_PX : collapsedHeight,
-        }}
+        className="overflow-hidden rounded-md border border-border/40"
+        style={{ maxHeight: expanded ? undefined : collapsedHeight }}
       >
-        <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={fullPatch} />
+        <PatchDiff options={DIFF_OPTIONS} patch={patch} />
       </div>
       {overflows ? (
         <button
@@ -98,16 +87,6 @@ const FileNameHeader = ({
     </span>
   </button>
 );
-
-const wrapPatch = (file: PullRequestFile): string => {
-  if (!file.patch) return "";
-  const oldPath = file.previousFilename ?? file.filename;
-  const oldHeader = file.status === "added" ? "--- /dev/null" : `--- a/${oldPath}`;
-  const newHeader = file.status === "deleted" ? "+++ /dev/null" : `+++ b/${file.filename}`;
-  return [`diff --git a/${oldPath} b/${file.filename}`, oldHeader, newHeader, file.patch].join(
-    "\n",
-  );
-};
 
 const countDiffRows = (patch: string): number => {
   if (!patch) return 0;
