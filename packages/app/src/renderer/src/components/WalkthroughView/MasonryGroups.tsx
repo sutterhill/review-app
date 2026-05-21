@@ -43,19 +43,14 @@ export const MasonryGroups = ({
   const hasActive = activeFiles.size > 0;
 
   return (
-    <div aria-label="Changed file groups" className="flex flex-col gap-8">
+    <div aria-label="Changed file groups" className="flex flex-wrap items-start gap-4">
       {layout.map((group) => (
-        <section className="flex flex-col gap-3" key={group.title}>
-          <header className="flex items-center gap-3 px-1">
-            <h3 className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {group.title}
-            </h3>
-            <span aria-hidden="true" className="flex-1 border-t border-dashed border-border" />
-            <span className="font-mono text-[0.7rem] tabular-nums text-muted-foreground">
-              {group.files.length}
-            </span>
-          </header>
-          <div className="flex flex-wrap items-start gap-4">
+        <section
+          className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
+          key={group.title}
+        >
+          <h3 className="text-[0.85rem] font-medium text-foreground/80">{group.title}</h3>
+          <div className="flex flex-wrap items-start gap-3">
             {group.files.map((file) => (
               <FileMasonryCard
                 active={selectedPath === file.filename}

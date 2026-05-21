@@ -1,8 +1,6 @@
 import { GitPullRequest } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 import type { PullRequestData } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { FileOverlayPanel } from "./FileOverlayPanel";
@@ -142,17 +140,15 @@ export const WalkthroughView = ({
           />
         </div>
       </div>
-      <div className={cn("relative px-4 py-6")}>
-        <div className="sticky top-[7rem] max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
-          <MasonryGroups
-            activeFiles={activeFiles}
-            emphasizedRanges={stepEmphasis}
-            files={pullRequest.files}
-            groups={groups}
-            onSelect={setSelectedPath}
-            selectedPath={selectedPath}
-          />
-        </div>
+      <div className="relative px-4 py-6">
+        <MasonryGroups
+          activeFiles={activeFiles}
+          emphasizedRanges={stepEmphasis}
+          files={pullRequest.files}
+          groups={groups}
+          onSelect={setSelectedPath}
+          selectedPath={selectedPath}
+        />
         {selectedPath ? (
           <FileOverlayPanel
             emphasizedRanges={emphasizedRanges}
