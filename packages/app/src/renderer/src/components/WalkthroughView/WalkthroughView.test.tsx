@@ -1,8 +1,14 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: (boolean | string | undefined)[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@pierre/diffs/react", () => ({
+  PatchDiff: ({ patch }: { patch: string }) => <div data-diffs-container>{patch}</div>,
+  WorkerPoolContextProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
 import { WalkthroughView } from "./WalkthroughView";
@@ -21,10 +27,12 @@ describe("WalkthroughView", () => {
     expect(html).not.toContain("+new");
   });
 
-  it("renders diff blocks by default", () => {
+  it("defers diff blocks from the initial render", () => {
     const html = renderToStaticMarkup(<WalkthroughView walkthrough={walkthrough} />);
 
-    expect(html).toContain("-old");
-    expect(html).toContain("+new");
+    expect(html).toContain("Intro");
+    expect(html).toContain("Outro");
+    expect(html).not.toContain("-old");
+    expect(html).not.toContain("+new");
   });
 });

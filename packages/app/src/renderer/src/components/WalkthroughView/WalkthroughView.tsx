@@ -1,16 +1,30 @@
-import {
-  memo,
-  startTransition,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { PatchDiff, WorkerPoolContextProvider, type PatchDiffProps } from "@pierre/diffs/react";
+import { memo, startTransition, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
+import { DIFF_OPTIONS } from "../diff-utils";
 import { buildWalkthroughLayout } from "./walkthrough-parser";
+
+type PatchDiffOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
+
+const WALKTHROUGH_DIFF_OPTIONS: PatchDiffOptions = {
+  ...DIFF_OPTIONS,
+  disableFileHeader: true,
+  stickyHeader: false,
+};
+
+const DIFF_WORKER_POOL_OPTIONS = {
+  poolSize: 2,
+  totalASTLRUCacheSize: 200,
+  workerFactory: (): Worker =>
+    new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), { type: "module" }),
+};
+
+const DIFF_HIGHLIGHTER_OPTIONS = {
+  maxLineDiffLength: 1000,
+  theme: DIFF_OPTIONS.theme,
+  tokenizeMaxLineLength: 1000,
+};
 
 interface WalkthroughViewProps {
   onFileClick?: (path: string) => void;
@@ -23,9 +37,12 @@ export const WalkthroughView = ({
   showDiffs = true,
   walkthrough,
 }: WalkthroughViewProps): React.JSX.Element => {
-  const [diffsVisible, setDiffsVisible] = useState(showDiffs);
+  const [visibleDiffCount, setVisibleDiffCount] = useState(0);
   const layout = useMemo(() => buildWalkthroughLayout(walkthrough), [walkthrough]);
-  const deferredDiffs = useDeferredValue(layout.diffs);
+  const visibleDiffs = useMemo(
+    () => layout.diffs.slice(0, visibleDiffCount),
+    [layout.diffs, visibleDiffCount],
+  );
   const gridRef = useRef<HTMLDivElement>(null);
   const proseRef = useRef<HTMLDivElement>(null);
   const diffContainerRef = useRef<HTMLDivElement>(null);
@@ -35,12 +52,46 @@ export const WalkthroughView = ({
   });
 
   useEffect(() => {
-    if (showDiffs) {
-      startTransition(() => setDiffsVisible(true));
-    } else {
-      setDiffsVisible(false);
+    setVisibleDiffCount(0);
+
+    if (!showDiffs || layout.diffs.length === 0) {
+      return;
     }
-  }, [showDiffs]);
+
+    let isCancelled = false;
+    let count = 0;
+    let frameId: number | undefined;
+    let nextFrameId: number | undefined;
+
+    const showNextDiff = (): void => {
+      if (isCancelled || count >= layout.diffs.length) {
+        return;
+      }
+
+      count += 1;
+      startTransition(() => setVisibleDiffCount(count));
+
+      frameId = requestAnimationFrame(() => {
+        nextFrameId = requestAnimationFrame(showNextDiff);
+      });
+    };
+
+    frameId = requestAnimationFrame(showNextDiff);
+
+    return () => {
+      isCancelled = true;
+      if (frameId !== undefined) cancelAnimationFrame(frameId);
+      if (nextFrameId !== undefined) cancelAnimationFrame(nextFrameId);
+    };
+  }, [layout.diffs, showDiffs]);
+
+  const diffsVisible = visibleDiffs.length > 0;
+
+  useEffect(() => {
+    if (!diffsVisible) {
+      setAnchorLayout({ minHeight: 0, positions: {} });
+    }
+  }, [diffsVisible]);
 
   useEffect(() => {
     const gridElement = gridRef.current;
@@ -70,7 +121,7 @@ export const WalkthroughView = ({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", measureAnchors);
     };
-  }, [deferredDiffs, diffsVisible, layout]);
+  }, [diffsVisible, layout, visibleDiffs]);
 
   if (!layout.prose) {
     return (
@@ -81,41 +132,46 @@ export const WalkthroughView = ({
   }
 
   return (
-    <div
-      className={cn(
-        "relative grid items-start",
-        diffsVisible && layout.diffs.length > 0
-          ? "grid-cols-[minmax(0,65ch)_minmax(0,1fr)] gap-8"
-          : "grid-cols-[minmax(0,70ch)]",
-      )}
-      aria-label="Pull request walkthrough"
-      ref={gridRef}
+    <WorkerPoolContextProvider
+      highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
+      poolOptions={DIFF_WORKER_POOL_OPTIONS}
     >
-      <div ref={proseRef}>
-        <WalkthroughProse markdown={layout.prose} onFileClick={onFileClick} />
-      </div>
-      {diffsVisible && layout.diffs.length > 0 ? (
-        <div
-          className="relative"
-          ref={diffContainerRef}
-          style={{ minHeight: anchorLayout.minHeight }}
-        >
-          {deferredDiffs.map((diff) => (
-            <div
-              className="absolute left-0 right-0 flex flex-col gap-1"
-              data-diff-id={diff.anchorId}
-              key={diff.anchorId}
-              style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
-            >
-              {diff.label ? (
-                <p className="text-xs italic text-muted-foreground">{diff.label}</p>
-              ) : null}
-              <DiffBlock code={diff.code} />
-            </div>
-          ))}
+      <div
+        className={cn(
+          "relative grid items-start",
+          showDiffs && layout.diffs.length > 0
+            ? "grid-cols-[minmax(0,65ch)_minmax(0,1fr)] gap-8"
+            : "grid-cols-[minmax(0,70ch)]",
+        )}
+        aria-label="Pull request walkthrough"
+        ref={gridRef}
+      >
+        <div ref={proseRef}>
+          <WalkthroughProse markdown={layout.prose} onFileClick={onFileClick} />
         </div>
-      ) : null}
-    </div>
+        {showDiffs && layout.diffs.length > 0 ? (
+          <div
+            className="relative"
+            ref={diffContainerRef}
+            style={{ minHeight: anchorLayout.minHeight }}
+          >
+            {visibleDiffs.map((diff) => (
+              <div
+                className="absolute left-0 right-0 flex flex-col gap-1"
+                data-diff-id={diff.anchorId}
+                key={diff.anchorId}
+                style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
+              >
+                {diff.label ? (
+                  <p className="text-xs italic text-muted-foreground">{diff.label}</p>
+                ) : null}
+                <DiffBlock code={diff.code} label={diff.label} />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </WorkerPoolContextProvider>
   );
 };
 
@@ -172,18 +228,19 @@ const isSameAnchorLayout = (current: AnchorLayoutState, next: AnchorLayoutState)
   );
 };
 
-const WalkthroughProse = ({
+const WalkthroughProse = memo(function WalkthroughProse({
   markdown,
   onFileClick,
 }: {
   markdown: string;
   onFileClick?: (path: string) => void;
-}): React.JSX.Element => {
+}): React.JSX.Element {
+  const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
   let headingIndex = 0;
 
   return (
     <article className="flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground">
-      {parseMarkdown(markdown).map((block, index) => {
+      {blocks.map((block, index) => {
         if (block.type === "diff-anchor") {
           return (
             <span className="block h-0" data-diff-anchor={block.anchorId} key={block.anchorId} />
@@ -196,7 +253,7 @@ const WalkthroughProse = ({
       })}
     </article>
   );
-};
+});
 
 type MarkdownBlock =
   | { level: number; text: string; type: "heading" }
@@ -378,26 +435,47 @@ const renderHeading = (
   );
 };
 
-const DiffBlock = memo(({ code }: { code: string }): React.JSX.Element => {
-  const lineOccurrences = new Map<string, number>();
-  return (
-    <pre className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs">
-      {code.split("\n").map((line) => {
-        const occurrence = lineOccurrences.get(line) ?? 0;
-        lineOccurrences.set(line, occurrence + 1);
-        let lineClass = "text-foreground";
-        if (line.startsWith("+")) lineClass = "text-green-400";
-        else if (line.startsWith("-")) lineClass = "text-red-400";
-        else if (line.startsWith("@@")) lineClass = "text-blue-400";
-        return (
-          <div key={`${line}-${occurrence}`} className={lineClass}>
-            {line || " "}
-          </div>
-        );
-      })}
-    </pre>
-  );
-});
+const DiffBlock = memo(
+  ({ code, label }: { code: string; label?: string }): React.JSX.Element => (
+    <PatchDiff
+      className="block overflow-hidden rounded-md border bg-background text-xs"
+      options={WALKTHROUGH_DIFF_OPTIONS}
+      patch={buildPatchForDiffBlock(code, label)}
+    />
+  ),
+);
+
+const buildPatchForDiffBlock = (code: string, label?: string): string => {
+  const trimmedCode = code.trimEnd();
+  if (/^(?:diff --git |---\s+)/mu.test(trimmedCode)) {
+    return trimmedCode;
+  }
+
+  const fileName = normalizeDiffFileName(label);
+  return [
+    `--- a/${fileName}`,
+    `+++ b/${fileName}`,
+    buildSyntheticHunkHeader(trimmedCode),
+    trimmedCode,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const normalizeDiffFileName = (label?: string): string => {
+  const fileName = label?.replace(/^a\//u, "").replace(/^b\//u, "").trim();
+  return fileName && !/\s/u.test(fileName) ? fileName : "walkthrough.diff";
+};
+
+const buildSyntheticHunkHeader = (code: string): string => {
+  const lines = code.length > 0 ? code.split("\n") : [];
+  const deletionLines = lines.filter((line) => line.startsWith("-") && !line.startsWith("---"));
+  const additionLines = lines.filter((line) => line.startsWith("+") && !line.startsWith("+++"));
+  const contextLines = lines.length - deletionLines.length - additionLines.length;
+  const oldLineCount = Math.max(1, deletionLines.length + contextLines);
+  const newLineCount = Math.max(1, additionLines.length + contextLines);
+  return `@@ -1,${oldLineCount} +1,${newLineCount} @@`;
+};
 
 const renderInlineMarkdown = (text: string, onFileClick?: (path: string) => void): ReactNode[] => {
   const nodes: ReactNode[] = [];
