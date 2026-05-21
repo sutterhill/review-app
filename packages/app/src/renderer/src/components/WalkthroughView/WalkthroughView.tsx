@@ -1,5 +1,4 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { GitPullRequest } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePRContext } from "../../routes/pr-context";
@@ -99,6 +98,48 @@ export const WalkthroughView = ({
     element?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [leftRatio, setLeftRatio] = useState(40);
+  const isDraggingRef = useRef(false);
+
+  const handleResizeStart = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setLeftRatio((value) => Math.max(25, value - 2));
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setLeftRatio((value) => Math.min(75, value + 2));
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleMove = (event: MouseEvent): void => {
+      if (!isDraggingRef.current || !splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const pct = ((event.clientX - rect.left) / rect.width) * 100;
+      setLeftRatio(Math.max(25, Math.min(75, pct)));
+    };
+    const handleUp = (): void => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, []);
+
   const { setSidebar } = usePRContext();
   const tocEntries = useMemo<WalkthroughTOCEntry[]>(
     () => allSteps.map(({ key, step }) => ({ heading: step.heading, key })),
@@ -116,12 +157,17 @@ export const WalkthroughView = ({
       highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
       poolOptions={DIFF_WORKER_POOL_OPTIONS}
     >
-      <div className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+      <div
+        className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid"
+        ref={splitContainerRef}
+        style={{
+          gridTemplateColumns: `minmax(0,${leftRatio}fr) 6px minmax(0,${100 - leftRatio}fr)`,
+        }}
+      >
         <div className="flex flex-col gap-6 border-r px-8 py-8">
-          <PullRequestHeader pullRequest={pullRequest} />
           <div aria-label="Walkthrough description" className="flex flex-col gap-2">
             {initialResponse?.description ? (
-              <p className="text-[0.95rem] leading-7 text-foreground">
+              <p className="text-[1.02rem] font-light leading-[1.55] text-foreground">
                 {initialResponse.description}
               </p>
             ) : (
@@ -170,6 +216,15 @@ export const WalkthroughView = ({
             />
           </div>
         </div>
+        <button
+          aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
+          className="group hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
+          onKeyDown={handleResizeKeyDown}
+          onMouseDown={handleResizeStart}
+          type="button"
+        >
+          <span className="h-full w-px bg-border transition-colors group-hover:bg-foreground/30" />
+        </button>
         <div className="px-4 py-6">
           <div className="sticky top-[8.5rem] max-h-[calc(100vh-9.5rem)] overflow-y-auto pr-2">
             <MasonryGroups
@@ -233,47 +288,4 @@ const collectSteps = (
     });
   }
   return result;
-};
-
-const PullRequestHeader = ({
-  pullRequest,
-}: {
-  pullRequest: PullRequestData;
-}): React.JSX.Element => {
-  const { metadata } = pullRequest;
-  const initial = (metadata.author.login ?? "?").slice(0, 1).toUpperCase();
-  return (
-    <header className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3 text-[0.78rem] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5 text-[var(--color-pr-accent,#7c3aed)]">
-          <GitPullRequest aria-hidden="true" className="size-3.5" />
-          <span className="font-medium">PR #{metadata.number}</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          {metadata.author.avatarUrl ? (
-            <img
-              alt=""
-              aria-hidden="true"
-              className="size-5 rounded-full border border-border bg-muted object-cover"
-              src={metadata.author.avatarUrl}
-            />
-          ) : (
-            <span
-              aria-hidden="true"
-              className="flex size-5 items-center justify-center rounded-full bg-muted text-[0.6rem] font-medium text-muted-foreground"
-            >
-              {initial}
-            </span>
-          )}
-          <span className="text-foreground">{metadata.author.login}</span>
-        </span>
-      </div>
-      <h1
-        className="font-serif text-[2.6rem] font-normal italic leading-[1.05] tracking-tight text-foreground"
-        style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}
-      >
-        {metadata.title}
-      </h1>
-    </header>
-  );
 };
