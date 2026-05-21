@@ -1,6 +1,22 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 import {
   selectOpenPullRequests,
@@ -29,47 +45,57 @@ export const PRList = (): React.JSX.Element => {
   const isLoading = status === "loading";
 
   return (
-    <section className="panel panel-wide pr-list-panel">
-      <div className="pr-list-header">
-        <div>
-          <p className="eyebrow">Review requests</p>
-          <h1>Pull requests to review</h1>
-          <p>Grouped by repository. Set up each repo once, then open a PR.</p>
-        </div>
-        <button
-          className="button button-secondary"
-          disabled={isLoading}
-          onClick={() => dispatch(prActions.fetchOpenPullRequests())}
-          type="button"
-        >
-          {isLoading ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-      {error ? <p className="error">{error.message}</p> : null}
-      {isLoading && pullRequests.length === 0 ? <PRListSkeleton /> : null}
-      {!isLoading && pullRequests.length === 0 && !error ? (
-        <p className="empty-state">No open pull requests are requesting your review.</p>
-      ) : null}
-      <div className="pr-repo-groups" aria-label="Open review requests">
-        {repoGroups.map((repoGroup) => {
-          const repoEntry = repoEntries[normalizeRepoKey(repoGroup.repositoryName)];
+    <Card className="w-full max-w-7xl" size="sm">
+      <CardHeader className="border-b">
+        <CardTitle>Pull requests to review</CardTitle>
+        <CardDescription>
+          Review requests grouped by repository. Set up each repo once, then open a PR.
+        </CardDescription>
+        <CardAction>
+          <Button
+            disabled={isLoading}
+            onClick={() => dispatch(prActions.fetchOpenPullRequests())}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {isLoading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-col gap-4">
+        {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+        {isLoading && pullRequests.length === 0 ? <PRListSkeleton /> : null}
+        {!isLoading && pullRequests.length === 0 && !error ? (
+          <p className="text-sm text-muted-foreground">
+            No open pull requests are requesting your review.
+          </p>
+        ) : null}
+        {repoGroups.length > 0 ? (
+          <ScrollArea className="h-[calc(100vh-14rem)] pr-3" aria-label="Open review requests">
+            <div className="flex flex-col gap-4">
+              {repoGroups.map((repoGroup) => {
+                const repoEntry = repoEntries[normalizeRepoKey(repoGroup.repositoryName)];
 
-          return (
-            <PRRepoGroup
-              key={repoGroup.repositoryName}
-              onClone={() =>
-                dispatch(reposActions.cloneRepo({ fullName: repoGroup.repositoryName }))
-              }
-              onLocate={() =>
-                dispatch(reposActions.locateRepo({ fullName: repoGroup.repositoryName }))
-              }
-              repoEntry={repoEntry}
-              repoGroup={repoGroup}
-            />
-          );
-        })}
-      </div>
-    </section>
+                return (
+                  <PRRepoGroup
+                    key={repoGroup.repositoryName}
+                    onClone={() =>
+                      dispatch(reposActions.cloneRepo({ fullName: repoGroup.repositoryName }))
+                    }
+                    onLocate={() =>
+                      dispatch(reposActions.locateRepo({ fullName: repoGroup.repositoryName }))
+                    }
+                    repoEntry={repoEntry}
+                    repoGroup={repoGroup}
+                  />
+                );
+              })}
+            </div>
+          </ScrollArea>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -94,29 +120,51 @@ const PRRepoGroup = ({
   const isBusy = repoEntry?.status === "cloning" || repoEntry?.status === "locating";
 
   return (
-    <section className="pr-repo-group">
-      <div className="pr-repo-header">
-        <div className="pr-repo-summary">
-          <h2>{repoGroup.repositoryName}</h2>
-          <p>{formatPullRequestCount(repoGroup.pullRequests.length)} requesting review</p>
-          {repoEntry?.localPath ? <p className="repo-path">{repoEntry.localPath}</p> : null}
-          {repoEntry?.error ? <p className="error repo-error">{repoEntry.error}</p> : null}
-        </div>
-        <div className="repo-actions" aria-label={`${repoGroup.repositoryName} repository setup`}>
-          <button className="diff-toggle" disabled={isBusy} onClick={onClone} type="button">
+    <Card size="sm">
+      <CardHeader className="border-b">
+        <CardTitle className="truncate font-mono text-sm">{repoGroup.repositoryName}</CardTitle>
+        <CardDescription className="flex min-w-0 flex-col gap-1 text-xs">
+          <span>{formatPullRequestCount(repoGroup.pullRequests.length)} requesting review</span>
+          {repoEntry?.localPath ? (
+            <span className="truncate font-mono">{repoEntry.localPath}</span>
+          ) : null}
+          {repoEntry?.error ? <span className="text-destructive">{repoEntry.error}</span> : null}
+        </CardDescription>
+        <CardAction
+          aria-label={`${repoGroup.repositoryName} repository setup`}
+          className="flex flex-wrap justify-end gap-2"
+        >
+          <Button
+            disabled={isBusy}
+            onClick={onClone}
+            size="xs"
+            type="button"
+            variant="outline"
+          >
             {repoEntry?.status === "cloning" ? "Cloning..." : "Clone"}
-          </button>
-          <button className="diff-toggle" disabled={isBusy} onClick={onLocate} type="button">
+          </Button>
+          <Button
+            disabled={isBusy}
+            onClick={onLocate}
+            size="xs"
+            type="button"
+            variant="outline"
+          >
             {repoEntry?.status === "locating" ? "Locating..." : "Locate"}
-          </button>
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="flex flex-col">
+          {repoGroup.pullRequests.map((pullRequest, index) => (
+            <Fragment key={pullRequest.reference}>
+              <PRListItem pullRequest={pullRequest} />
+              {index < repoGroup.pullRequests.length - 1 ? <Separator /> : null}
+            </Fragment>
+          ))}
         </div>
-      </div>
-      <div className="pr-list">
-        {repoGroup.pullRequests.map((pullRequest) => (
-          <PRListItem key={pullRequest.reference} pullRequest={pullRequest} />
-        ))}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -128,23 +176,42 @@ const PRListItem = ({ pullRequest }: PRListItemProps): React.JSX.Element => {
   const reviewPath = `/pr/${pullRequest.owner}/${pullRequest.repo}/${pullRequest.number}`;
 
   return (
-    <article className="pr-list-item">
-      <Link className="pr-list-link" to={reviewPath}>
-        <span className="pr-number">#{pullRequest.number}</span>
-        <h2>{pullRequest.title}</h2>
-        <p>
-          {pullRequest.author.login} updated {formatUpdatedAt(pullRequest.updatedAt)}
-        </p>
+    <article>
+      <Link
+        className={cn(
+          "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-foreground",
+          "transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+        to={reviewPath}
+      >
+        <Avatar size="sm">
+          {pullRequest.author.avatarUrl ? (
+            <AvatarImage
+              alt={`@${pullRequest.author.login}`}
+              src={pullRequest.author.avatarUrl}
+            />
+          ) : null}
+          <AvatarFallback>{getAvatarFallback(pullRequest.author.login)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-medium leading-snug">{pullRequest.title}</h3>
+          <p className="truncate text-xs text-muted-foreground">
+            {pullRequest.author.login} updated {formatUpdatedAt(pullRequest.updatedAt)}
+          </p>
+        </div>
+        <Badge className="justify-self-end" variant="secondary">
+          #{pullRequest.number}
+        </Badge>
       </Link>
     </article>
   );
 };
 
 const PRListSkeleton = (): React.JSX.Element => (
-  <div className="pr-list-loading" aria-label="Loading pull requests">
-    <span />
-    <span />
-    <span />
+  <div className="flex flex-col gap-3" aria-label="Loading pull requests">
+    <Skeleton className="h-24 w-full" />
+    <Skeleton className="h-24 w-full" />
+    <Skeleton className="h-24 w-full" />
   </div>
 );
 
@@ -167,6 +234,8 @@ const groupPullRequestsByRepository = (
 };
 
 const formatPullRequestCount = (count: number): string => (count === 1 ? "1 PR" : `${count} PRs`);
+
+const getAvatarFallback = (login: string): string => login.slice(0, 2).toUpperCase() || "?";
 
 const formatUpdatedAt = (updatedAt: string): string => {
   const timestamp = Date.parse(updatedAt);
