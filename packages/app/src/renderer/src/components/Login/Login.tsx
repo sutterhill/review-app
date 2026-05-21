@@ -1,6 +1,17 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 import {
   selectAuthError,
   selectAuthStatus,
@@ -25,37 +36,52 @@ export const Login = (): React.JSX.Element => {
   const isPolling = authStatus === "polling";
 
   return (
-    <section className="panel login-panel">
-      <p className="eyebrow">GitHub sign-in</p>
-      <h1>Connect GitHub to review pull requests.</h1>
-      <p className="muted">
-        We first check your local GitHub CLI session. If one is not available, sign in with a
-        one-time device code.
-      </p>
-      {deviceFlow ? (
-        <div className="stack" aria-live="polite">
-          <p className="muted">Open GitHub, then enter this code:</p>
-          <strong className="auth-code">{deviceFlow.userCode}</strong>
-          <a
-            className="auth-link"
-            href={deviceFlow.verificationUriComplete ?? deviceFlow.verificationUri}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {deviceFlow.verificationUri}
-          </a>
-          <p className="muted">Waiting for GitHub authorization...</p>
-        </div>
-      ) : null}
-      <button
-        className="button"
-        disabled={isChecking || isPolling}
-        onClick={() => dispatch(authActions.startDeviceFlow())}
-        type="button"
-      >
-        {isChecking ? "Checking GitHub CLI..." : isPolling ? "Waiting for GitHub..." : "Sign in"}
-      </button>
-      {authError ? <p className="error">{authError}</p> : null}
-    </section>
+    <Card aria-labelledby="login-title" className="mt-[min(12vh,5rem)] w-full max-w-[34rem]">
+      <CardHeader>
+        <CardTitle id="login-title">GitHub sign-in</CardTitle>
+        <CardDescription>Connect GitHub to review pull requests.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <p className="text-sm leading-6 text-muted-foreground">
+          We first check your local GitHub CLI session. If one is not available, sign in with a
+          one-time device code.
+        </p>
+        {deviceFlow ? (
+          <div className="flex flex-col gap-3" aria-live="polite">
+            <p className="text-sm leading-6 text-muted-foreground">
+              Open GitHub, then enter this code:
+            </p>
+            <strong className="inline-flex justify-center rounded-lg border border-border bg-muted px-4 py-3 font-mono text-2xl font-semibold tracking-widest text-foreground">
+              {deviceFlow.userCode}
+            </strong>
+            <a
+              className="break-words text-sm text-primary underline-offset-4 hover:underline"
+              href={deviceFlow.verificationUriComplete ?? deviceFlow.verificationUri}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {deviceFlow.verificationUri}
+            </a>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Waiting for GitHub authorization...
+            </p>
+          </div>
+        ) : null}
+      </CardContent>
+      <CardFooter className="flex-col items-stretch gap-3">
+        <Button
+          disabled={isChecking || isPolling}
+          onClick={() => dispatch(authActions.startDeviceFlow())}
+          type="button"
+        >
+          {isChecking ? "Checking GitHub CLI..." : isPolling ? "Waiting for GitHub..." : "Sign in"}
+        </Button>
+        {authError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardFooter>
+    </Card>
   );
 };
