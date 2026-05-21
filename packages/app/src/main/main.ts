@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -20,6 +20,51 @@ const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_OAUTH_CLIENT_ID_ENV = "GITHUB_OAUTH_CLIENT_ID";
 const GITHUB_OAUTH_SCOPE = "repo read:org";
 const GITHUB_TOKEN_FILE = "github-oauth-token";
+
+loadDotEnvFiles([".env.local", ".env"]);
+
+function loadDotEnvFiles(filenames: string[]): void {
+  let dir = process.cwd();
+  const visited = new Set<string>();
+  for (let i = 0; i < 8 && !visited.has(dir); i += 1) {
+    visited.add(dir);
+    for (const filename of filenames) {
+      const candidate = path.join(dir, filename);
+      if (existsSync(candidate)) {
+        mergeDotEnv(candidate);
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+}
+
+function mergeDotEnv(filePath: string): void {
+  let content: string;
+  try {
+    content = readFileSync(filePath, "utf-8");
+  } catch {
+    return;
+  }
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
 
 interface AuthStatusResponse {
   authenticated: boolean;
