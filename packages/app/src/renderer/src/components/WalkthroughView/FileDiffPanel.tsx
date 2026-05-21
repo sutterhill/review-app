@@ -1,6 +1,6 @@
 import { PatchDiff } from "@pierre/diffs/react";
 import { Check } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,7 @@ export const FileDiffPanel = ({
   patch,
 }: FileDiffPanelProps): React.JSX.Element => {
   const [expanded, setExpanded] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
   const fileName = file.filename.split("/").pop() ?? file.filename;
   const directory = file.filename
     .slice(0, file.filename.length - fileName.length)
@@ -37,16 +38,48 @@ export const FileDiffPanel = ({
     [expanded, overflows, patch],
   );
 
+  const handleToggleViewed = useCallback(
+    (filename: string, viewed: boolean) => {
+      onToggleViewed?.(filename, viewed);
+      if (!viewed) return;
+      setExpanded(false);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const panels = document.querySelectorAll<HTMLElement>("article[data-file-diff-panel]");
+          const list = Array.from(panels);
+          const idx = articleRef.current ? list.indexOf(articleRef.current) : -1;
+          const next = idx >= 0 ? list[idx + 1] : null;
+          if (!next) return;
+          const stickyHeader = document.querySelector<HTMLElement>("[data-pr-sticky-header]");
+          const offset = stickyHeader?.offsetHeight ?? 0;
+          const rect = next.getBoundingClientRect();
+          window.scrollTo({
+            behavior: "smooth",
+            top: window.scrollY + rect.top - offset - 60,
+          });
+        });
+      });
+    },
+    [onToggleViewed],
+  );
+
+  const wrappedToggleViewed = onToggleViewed ? handleToggleViewed : undefined;
+
   if (!patch) {
     return (
-      <article className={cn("flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}>
+      <article
+        className={cn("flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
+        data-file-diff-panel=""
+        ref={articleRef}
+        style={{ scrollMarginTop: "var(--pr-header-offset, 0px)" }}
+      >
         <FileNameHeader
           directory={directory}
           file={file}
           fileName={fileName}
           isViewed={isViewed}
           onOpen={onOpen}
-          onToggleViewed={onToggleViewed}
+          onToggleViewed={wrappedToggleViewed}
         />
         <p className="px-1 text-xs text-muted-foreground">No textual diff for this file.</p>
       </article>
@@ -54,27 +87,32 @@ export const FileDiffPanel = ({
   }
 
   return (
-    <article className={cn("flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}>
+    <article
+      className={cn("relative flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
+      data-file-diff-panel=""
+      ref={articleRef}
+      style={{ scrollMarginTop: "var(--pr-header-offset, 0px)" }}
+    >
       <FileNameHeader
         directory={directory}
         file={file}
         fileName={fileName}
         isViewed={isViewed}
         onOpen={onOpen}
-        onToggleViewed={onToggleViewed}
+        onToggleViewed={wrappedToggleViewed}
       />
-      <div className="relative overflow-hidden rounded-md border border-border/40">
+      <div className="relative overflow-hidden rounded-md border border-border/40 bg-white pt-2">
         <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={visiblePatch} />
-        {overflows ? (
-          <button
-            className="sticky bottom-0 left-0 z-[1] flex w-full items-center justify-center border-t border-border/40 bg-background/95 px-2 py-0.5 text-[0.7rem] text-muted-foreground backdrop-blur-sm hover:text-foreground"
-            onClick={() => setExpanded((value) => !value)}
-            type="button"
-          >
-            {expanded ? "Show less" : `Show ${hiddenCount} more lines`}
-          </button>
-        ) : null}
       </div>
+      {overflows ? (
+        <button
+          className="sticky bottom-0 left-0 z-10 -mt-2 flex w-full cursor-pointer items-center justify-center rounded-b-md bg-background/95 px-2 py-0.5 text-[0.7rem] text-muted-foreground backdrop-blur-sm hover:text-foreground"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          {expanded ? "Show less" : `+ ${hiddenCount} more lines`}
+        </button>
+      ) : null}
     </article>
   );
 };
@@ -96,9 +134,12 @@ const FileNameHeader = ({
   onOpen,
   onToggleViewed,
 }: FileNameHeaderProps): React.JSX.Element => (
-  <div className="sticky top-[10rem] z-10 flex min-w-0 items-baseline gap-2 bg-background px-1 py-1">
+  <div
+    className="sticky z-10 flex min-w-0 items-baseline gap-2 bg-background px-1 py-1"
+    style={{ top: "var(--pr-header-offset, 0px)" }}
+  >
     <button
-      className="group flex min-w-0 flex-1 items-baseline gap-2 text-left"
+      className="group flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left"
       onClick={() => onOpen(file.filename)}
       type="button"
     >
@@ -106,9 +147,7 @@ const FileNameHeader = ({
         {fileName}
       </span>
       {directory ? (
-        <span className="min-w-0 truncate text-[0.7rem] text-muted-foreground">
-          {directory}
-        </span>
+        <span className="min-w-0 truncate text-[0.7rem] text-muted-foreground">{directory}</span>
       ) : null}
     </button>
     <span className="flex shrink-0 items-center gap-2 text-[0.7rem]">
@@ -119,10 +158,10 @@ const FileNameHeader = ({
           aria-label={isViewed ? "Mark as unviewed" : "Mark as viewed"}
           aria-pressed={isViewed}
           className={cn(
-            "ml-1 inline-flex size-4 items-center justify-center rounded-sm border text-muted-foreground transition-colors hover:text-foreground",
+            "ml-1 inline-flex size-4 cursor-pointer items-center justify-center rounded-sm border transition-colors",
             isViewed
-              ? "border-foreground/60 bg-foreground/10 text-foreground"
-              : "border-border/60 bg-transparent",
+              ? "border-foreground bg-foreground text-background"
+              : "border-border/60 bg-transparent text-muted-foreground hover:text-foreground",
           )}
           onClick={() => onToggleViewed(file.filename, !isViewed)}
           type="button"

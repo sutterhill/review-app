@@ -1,6 +1,9 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
+import { ChevronDown, ChevronUp, LayoutGrid, Rows3 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+
+import { cn } from "@/lib/utils";
 
 import { usePRContext } from "../../routes/pr-context";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
@@ -16,7 +19,11 @@ import { FileOverlayPanel } from "./FileOverlayPanel";
 import { FollowUpComposer } from "./FollowUpComposer";
 import { DescriptionSkeleton, StepSkeleton } from "./StepSkeleton";
 import { WalkthroughStep } from "./WalkthroughStep";
-import { WalkthroughTOC, type WalkthroughTOCEntry } from "./WalkthroughTOC";
+import {
+  WalkthroughTOC,
+  type WalkthroughTOCEntry,
+  type WalkthroughTOCSection,
+} from "./WalkthroughTOC";
 
 interface WalkthroughViewProps {
   isStreaming: boolean;
@@ -33,15 +40,26 @@ export const WalkthroughView = ({
   onOpenInChanges,
   pullRequest,
 }: WalkthroughViewProps): React.JSX.Element => {
-  const initialMessage = messages.find((message) => message.kind === "initial");
-  const initialResponse = initialMessage?.parsed;
   const lastMessage = messages[messages.length - 1];
   const suggestedQuestions = lastMessage?.parsed?.suggestedQuestions ?? [];
   const allSteps = useMemo(() => collectSteps(messages), [messages]);
   const [activeStepKey, setActiveStepKey] = useState<null | string>(allSteps[0]?.key ?? null);
   const [selectedPath, setSelectedPath] = useState<null | string>(null);
   const [emphasizedRanges, setEmphasizedRanges] = useState<LineRange[]>([]);
+  const [unlinkedLayout, setUnlinkedLayout] = useState<UnlinkedLayout>("masonry");
+  const [expandedUnlinked, setExpandedUnlinked] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
   const stepRefs = useRef(new Map<string, HTMLElement>());
+
+  const toggleUnlinkedExpanded = useCallback((messageId: string) => {
+    setExpandedUnlinked((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (activeStepKey && !allSteps.some((step) => step.key === activeStepKey)) {
@@ -104,13 +122,21 @@ export const WalkthroughView = ({
     return map;
   }, [allSteps, filesByPath]);
 
-  const unlinkedFiles = useMemo<PullRequestFile[]>(() => {
-    const referenced = new Set<string>();
-    for (const { step } of allSteps) {
-      for (const ref of step.relevantFiles ?? []) referenced.add(ref.path);
+  const unlinkedByMessage = useMemo<ReadonlyMap<string, PullRequestFile[]>>(() => {
+    const map = new Map<string, PullRequestFile[]>();
+    for (const message of messages) {
+      const referenced = new Set<string>();
+      for (const { message: m, step } of allSteps) {
+        if (m.id !== message.id) continue;
+        for (const ref of step.relevantFiles ?? []) referenced.add(ref.path);
+      }
+      map.set(
+        message.id,
+        pullRequest.files.filter((file) => !referenced.has(file.filename)),
+      );
     }
-    return pullRequest.files.filter((file) => !referenced.has(file.filename));
-  }, [allSteps, pullRequest.files]);
+    return map;
+  }, [allSteps, messages, pullRequest.files]);
 
   const handleRefClick = useCallback((path: string, lineRanges: LineRange[]) => {
     setSelectedPath(path);
@@ -181,121 +207,182 @@ export const WalkthroughView = ({
   }, []);
 
   const { setSidebar } = usePRContext();
-  const tocEntries = useMemo<WalkthroughTOCEntry[]>(
-    () => allSteps.map(({ key, step }) => ({ heading: step.heading, key })),
-    [allSteps],
-  );
+
+  const stepIndexByKey = useMemo(() => {
+    const map = new Map<string, number>();
+    const perMessage = new Map<string, number>();
+    for (const { key, message } of allSteps) {
+      const next = (perMessage.get(message.id) ?? 0) + 1;
+      perMessage.set(message.id, next);
+      map.set(key, next - 1);
+    }
+    return map;
+  }, [allSteps]);
+
+  const tocSections = useMemo<WalkthroughTOCSection[]>(() => {
+    const entriesByMessage = new Map<string, WalkthroughTOCEntry[]>();
+    for (const { key, message, step } of allSteps) {
+      const list = entriesByMessage.get(message.id) ?? [];
+      list.push({ heading: step.heading, key, number: list.length + 1 });
+      entriesByMessage.set(message.id, list);
+    }
+    return messages.map((message, index) => ({
+      entries: entriesByMessage.get(message.id) ?? [],
+      id: message.id,
+      kind: message.kind,
+      title:
+        message.kind === "follow-up"
+          ? (message.question ?? "Follow-up question")
+          : index === 0
+            ? "Overview"
+            : `Walkthrough ${index + 1}`,
+    }));
+  }, [allSteps, messages]);
+
+  const activeSectionId = useMemo<null | string>(() => {
+    if (activeStepKey) {
+      const entry = allSteps.find((step) => step.key === activeStepKey);
+      if (entry) return entry.message.id;
+    }
+    return messages[0]?.id ?? null;
+  }, [activeStepKey, allSteps, messages]);
+
   useEffect(() => {
     setSidebar(
-      <WalkthroughTOC activeKey={activeStepKey} entries={tocEntries} onSelect={handleTOCSelect} />,
+      <WalkthroughTOC
+        activeKey={activeStepKey}
+        activeSectionId={activeSectionId}
+        onSelect={handleTOCSelect}
+        sections={tocSections}
+      />,
     );
     return () => setSidebar(null);
-  }, [activeStepKey, handleTOCSelect, setSidebar, tocEntries]);
+  }, [activeSectionId, activeStepKey, handleTOCSelect, setSidebar, tocSections]);
+
+  const gridTemplateColumns = `minmax(0,${leftRatio}fr) 6px minmax(0,${100 - leftRatio}fr)`;
+  const lastMessageId = messages[messages.length - 1]?.id;
 
   return (
     <WorkerPoolContextProvider
       highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
       poolOptions={DIFF_WORKER_POOL_OPTIONS}
     >
-      <div className="relative">
-        {initialResponse?.description ? (
-          <p className="px-8 pt-8 pb-4 text-[1.02rem] font-light leading-[1.55] text-foreground">
-            {initialResponse.description}
-          </p>
-        ) : (
+      <div className="relative" ref={splitContainerRef}>
+        {messages.length === 0 ? (
           <div className="px-8 pt-8 pb-4">
             <DescriptionSkeleton />
           </div>
-        )}
-        <div
-          className="grid grid-cols-1 lg:grid"
-          ref={splitContainerRef}
-          style={{
-            gridTemplateColumns: `minmax(0,${leftRatio}fr) 6px minmax(0,${100 - leftRatio}fr)`,
-          }}
-        >
-          <button
-            aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
-            className="hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
-            onKeyDown={handleResizeKeyDown}
-            onMouseDown={handleResizeStart}
-            style={{ gridColumn: "2 / 3", gridRow: "1 / -1" }}
-            type="button"
-          />
-          {allSteps.length === 0 && isStreaming ? (
-            <div className="flex flex-col gap-12 px-8 py-6 lg:col-start-1">
-              <StepSkeleton />
-              <StepSkeleton />
-              <StepSkeleton />
-            </div>
-          ) : null}
-          {allSteps.map(({ key, message, step }, index) => (
-            <Fragment key={key}>
-              <div
-                className="scroll-mt-40 px-8 pt-10 pb-16 lg:col-start-1"
-                data-step-key={key}
-                ref={(element) => registerStep(key, element)}
-              >
-                <div className="sticky top-[10rem]">
-                  {message.kind === "follow-up" &&
-                  index > 0 &&
-                  allSteps[index - 1]?.message.id !== message.id ? (
-                    <p className="mb-3 text-xs text-muted-foreground italic">
-                      Follow-up: <span className="not-italic">{message.question}</span>
+        ) : null}
+        {messages.map((message, messageIndex) => {
+          const isInitial = message.kind === "initial";
+          const stepsForMessage = allSteps.filter((entry) => entry.message.id === message.id);
+          const isLastMessage = message.id === lastMessageId;
+          const messageIsLoading = stepsForMessage.length === 0 && isLastMessage && isStreaming;
+          const trailingSkeleton = stepsForMessage.length > 0 && isLastMessage && isStreaming;
+
+          return (
+            <Fragment key={message.id}>
+              {messageIndex > 0 ? (
+                <hr aria-hidden="true" className="mx-8 my-2 border-border/60" />
+              ) : null}
+              {isInitial ? (
+                message.parsed?.description ? (
+                  <p className="px-8 pt-8 pb-4 text-[1.02rem] font-light leading-[1.55] text-foreground">
+                    {message.parsed.description}
+                  </p>
+                ) : (
+                  <div className="px-8 pt-8 pb-4">
+                    <DescriptionSkeleton />
+                  </div>
+                )
+              ) : (
+                <div className="px-8 pt-8 pb-4">
+                  <p className="text-xs text-muted-foreground italic">Follow-up</p>
+                  {message.question ? (
+                    <p className="mt-1 text-[1.02rem] font-light leading-[1.55] text-foreground">
+                      {message.question}
                     </p>
                   ) : null}
-                  <WalkthroughStep
-                    index={index}
-                    isActive={key === activeStepKey}
-                    onRefClick={handleRefClick}
-                    step={step}
-                  />
                 </div>
-              </div>
-              <div className="px-4 pt-10 pb-16 lg:col-start-3">
-                {stepFiles[key] && stepFiles[key].length > 0 ? (
-                  <div aria-label="Files referenced in this step" className="flex flex-col gap-8">
-                    {stepFiles[key].map((file) => (
-                      <FileDiffPanel
-                        file={file}
-                        isViewed={viewedSet.has(file.filename)}
-                        key={file.filename}
-                        onOpen={setSelectedPath}
-                        onToggleViewed={handleToggleViewed}
-                        patch={patchByPath.get(file.filename) ?? ""}
-                      />
-                    ))}
+              )}
+              <div className="grid grid-cols-1 lg:grid" style={{ gridTemplateColumns }}>
+                <button
+                  aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
+                  className="hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
+                  onKeyDown={handleResizeKeyDown}
+                  onMouseDown={handleResizeStart}
+                  style={{ gridColumn: "2 / 3", gridRow: "1 / -1" }}
+                  type="button"
+                />
+                {messageIsLoading ? (
+                  <div className="flex flex-col gap-12 px-8 py-6 lg:col-start-1">
+                    <StepSkeleton />
+                    <StepSkeleton />
+                    <StepSkeleton />
+                  </div>
+                ) : null}
+                {stepsForMessage.map(({ key, step }) => {
+                  const stepIndex = stepIndexByKey.get(key) ?? 0;
+                  return (
+                    <Fragment key={key}>
+                      <div
+                        className="scroll-mt-40 px-8 pt-16 pb-32 lg:col-start-1"
+                        data-step-key={key}
+                        ref={(element) => registerStep(key, element)}
+                      >
+                        <div className="sticky top-[10rem]">
+                          <WalkthroughStep
+                            index={stepIndex}
+                            isActive={key === activeStepKey}
+                            onRefClick={handleRefClick}
+                            step={step}
+                          />
+                        </div>
+                      </div>
+                      <div className="px-4 pt-16 pb-32 lg:col-start-3">
+                        {stepFiles[key] && stepFiles[key].length > 0 ? (
+                          <div
+                            aria-label="Files referenced in this step"
+                            className="flex flex-col gap-16"
+                          >
+                            {stepFiles[key].map((file) => (
+                              <FileDiffPanel
+                                file={file}
+                                isViewed={viewedSet.has(file.filename)}
+                                key={file.filename}
+                                onOpen={setSelectedPath}
+                                onToggleViewed={handleToggleViewed}
+                                patch={patchByPath.get(file.filename) ?? ""}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </Fragment>
+                  );
+                })}
+                {trailingSkeleton ? (
+                  <div className="px-8 py-6 lg:col-start-1">
+                    <StepSkeleton />
                   </div>
                 ) : null}
               </div>
+              <UnlinkedFilesSection
+                expanded={expandedUnlinked.has(message.id)}
+                files={unlinkedByMessage.get(message.id) ?? []}
+                layout={unlinkedLayout}
+                maxFileLines={maxFileLines}
+                onLayoutChange={setUnlinkedLayout}
+                onOpen={setSelectedPath}
+                onToggleExpanded={() => toggleUnlinkedExpanded(message.id)}
+                onToggleViewed={handleToggleViewed}
+                patchByPath={patchByPath}
+                selectedPath={selectedPath}
+                viewedSet={viewedSet}
+              />
             </Fragment>
-          ))}
-          {isStreaming && allSteps.length > 0 ? (
-            <div className="px-8 py-6 lg:col-start-1">
-              <StepSkeleton />
-            </div>
-          ) : null}
-        </div>
-        {unlinkedFiles.length > 0 ? (
-          <section
-            aria-label="All other files"
-            className="flex flex-col gap-4 border-t border-border/60 px-8 py-8"
-          >
-            <h2 className="text-[0.95rem] font-medium text-foreground">All other</h2>
-            <div className="flex flex-wrap items-start gap-3">
-              {unlinkedFiles.map((file) => (
-                <FileMasonryCard
-                  active={selectedPath === file.filename}
-                  file={file}
-                  key={file.filename}
-                  maxFileLines={maxFileLines}
-                  onClick={setSelectedPath}
-                  relevant={false}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
+          );
+        })}
         <div className="px-8 py-6">
           <FollowUpComposer
             disabled={isStreaming}
@@ -307,17 +394,171 @@ export const WalkthroughView = ({
         {selectedPath ? (
           <FileOverlayPanel
             emphasizedRanges={emphasizedRanges}
+            isViewed={viewedSet.has(selectedPath)}
             onClose={() => {
               setSelectedPath(null);
               setEmphasizedRanges([]);
             }}
             onOpenInChanges={() => onOpenInChanges(selectedPath)}
+            onToggleViewed={handleToggleViewed}
             pullRequest={pullRequest}
             selectedPath={selectedPath}
           />
         ) : null}
       </div>
     </WorkerPoolContextProvider>
+  );
+};
+
+type UnlinkedLayout = "masonry" | "stacked";
+
+interface UnlinkedFilesSectionProps {
+  expanded: boolean;
+  files: PullRequestFile[];
+  layout: UnlinkedLayout;
+  maxFileLines: number;
+  onLayoutChange: (layout: UnlinkedLayout) => void;
+  onOpen: (path: string) => void;
+  onToggleExpanded: () => void;
+  onToggleViewed: (path: string, viewed: boolean) => void;
+  patchByPath: ReadonlyMap<string, string>;
+  selectedPath: null | string;
+  viewedSet: ReadonlySet<string>;
+}
+
+const UnlinkedFilesSection = ({
+  expanded,
+  files,
+  layout,
+  maxFileLines,
+  onLayoutChange,
+  onOpen,
+  onToggleExpanded,
+  onToggleViewed,
+  patchByPath,
+  selectedPath,
+  viewedSet,
+}: UnlinkedFilesSectionProps): null | React.JSX.Element => {
+  if (files.length === 0) return null;
+  const collapsedHeight = layout === "masonry" ? 360 : 520;
+  const collapsible = files.length > 4;
+  const isExpanded = !collapsible || expanded;
+  return (
+    <section
+      aria-label="All other files"
+      className="flex flex-col gap-4 border-t border-border/60 px-8 py-8"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[0.95rem] font-medium text-foreground">
+          All other{" "}
+          <span className="ml-1 font-normal tabular-nums text-muted-foreground">
+            {files.length}
+          </span>
+        </h2>
+        <UnlinkedLayoutToggle layout={layout} onChange={onLayoutChange} />
+      </div>
+      <div className="relative">
+        <div
+          className="overflow-hidden"
+          style={isExpanded ? undefined : { maxHeight: collapsedHeight }}
+        >
+          {layout === "masonry" ? (
+            <div className="flex flex-wrap items-start gap-3">
+              {files.map((file) => (
+                <FileMasonryCard
+                  active={selectedPath === file.filename}
+                  file={file}
+                  key={file.filename}
+                  maxFileLines={maxFileLines}
+                  onClick={onOpen}
+                  relevant={false}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {files.map((file) => (
+                <FileDiffPanel
+                  file={file}
+                  isViewed={viewedSet.has(file.filename)}
+                  key={file.filename}
+                  onOpen={onOpen}
+                  onToggleViewed={onToggleViewed}
+                  patch={patchByPath.get(file.filename) ?? ""}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        {!isExpanded ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
+        ) : null}
+        {collapsible ? (
+          <div className="mt-3 flex justify-center">
+            <button
+              aria-expanded={isExpanded}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/60 bg-background px-3 py-1.5 text-[0.8rem] font-medium text-muted-foreground transition-colors",
+                "hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              )}
+              onClick={onToggleExpanded}
+              type="button"
+            >
+              {isExpanded ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+              {isExpanded ? "Show less" : `Show ${files.length} files`}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+};
+
+interface UnlinkedLayoutToggleProps {
+  layout: UnlinkedLayout;
+  onChange: (layout: UnlinkedLayout) => void;
+}
+
+const UnlinkedLayoutToggle = ({
+  layout,
+  onChange,
+}: UnlinkedLayoutToggleProps): React.JSX.Element => {
+  return (
+    <div
+      aria-label="Layout"
+      className="inline-flex items-center gap-0.5 rounded-md border border-border/60 bg-background p-0.5"
+    >
+      <button
+        aria-label="Grid layout"
+        aria-pressed={layout === "masonry"}
+        className={cn(
+          "flex h-6 w-6 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors",
+          "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          layout === "masonry" && "bg-muted text-foreground",
+        )}
+        onClick={() => onChange("masonry")}
+        type="button"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+      </button>
+      <button
+        aria-label="Stacked layout"
+        aria-pressed={layout === "stacked"}
+        className={cn(
+          "flex h-6 w-6 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors",
+          "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          layout === "stacked" && "bg-muted text-foreground",
+        )}
+        onClick={() => onChange("stacked")}
+        type="button"
+      >
+        <Rows3 className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 };
 

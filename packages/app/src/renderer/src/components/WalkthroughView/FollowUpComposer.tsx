@@ -1,5 +1,5 @@
-import { ArrowRight, Sparkles } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { ArrowRight, Send } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,8 @@ interface FollowUpComposerProps {
   onSubmit: (question: string) => void;
   suggestedQuestions: string[];
 }
+
+const MAX_SHORTCUTS = 9;
 
 export const FollowUpComposer = ({
   disabled = false,
@@ -31,8 +33,43 @@ export const FollowUpComposer = ({
     submit(value);
   };
 
+  useEffect(() => {
+    if (disabled || suggestedQuestions.length === 0) return;
+    const handler = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const digit = Number.parseInt(event.key, 10);
+      if (!Number.isInteger(digit) || digit < 1 || digit > MAX_SHORTCUTS) return;
+      const question = suggestedQuestions[digit - 1];
+      if (!question) return;
+      event.preventDefault();
+      submit(question);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+
   return (
     <div className="flex flex-col gap-3">
+      {suggestedQuestions.length > 0 ? (
+        <ul className="flex flex-col">
+          {suggestedQuestions.slice(0, MAX_SHORTCUTS).map((question, index) => (
+            <li key={question}>
+              <button
+                className="group flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={disabled}
+                onClick={() => submit(question)}
+                type="button"
+              >
+                <Send aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate">{question}</span>
+                <kbd className="shrink-0 font-mono text-xs text-muted-foreground/70">
+                  ^{index + 1}
+                </kbd>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <form
         aria-label="Ask a follow-up question"
         className={cn(
@@ -66,28 +103,6 @@ export const FollowUpComposer = ({
           <ArrowRight />
         </Button>
       </form>
-      {suggestedQuestions.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          <p className="flex items-center gap-1.5 text-[0.7rem] uppercase tracking-wide text-muted-foreground">
-            <Sparkles aria-hidden="true" className="size-3" />
-            Suggested
-          </p>
-          <ul className="flex flex-col gap-1">
-            {suggestedQuestions.map((question) => (
-              <li key={question}>
-                <button
-                  className="w-full rounded-md border bg-card px-3 py-1.5 text-left text-xs text-foreground hover:border-primary/40 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={disabled}
-                  onClick={() => submit(question)}
-                  type="button"
-                >
-                  {question}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 };
