@@ -1,0 +1,61 @@
+{
+  "scripts": [
+    {
+      "name": "worker dev",
+      "command": "pnpm --filter worker run dev",
+      "mode": "service",
+      "category": "dev",
+      "cwd": "."
+    },
+    {
+      "name": "electron app",
+      "command": "pnpm start",
+      "mode": "service",
+      "category": "dev",
+      "cwd": "."
+    },
+    {
+      "name": "electron app smoke",
+      "command": "pnpm start",
+      "mode": "service",
+      "category": "dev",
+      "cwd": "."
+    },
+    {
+      "name": "dev",
+      "command": "pnpm dev",
+      "mode": "service",
+      "category": "dev"
+    },
+    {
+      "name": "format",
+      "command": "pnpm format",
+      "mode": "command",
+      "category": "format"
+    },
+    {
+      "name": "format:check",
+      "command": "pnpm format:check",
+      "mode": "command",
+      "category": "format"
+    },
+    {
+      "name": "lint",
+      "command": "pnpm lint",
+      "mode": "command",
+      "category": "lint"
+    },
+    {
+      "name": "start",
+      "command": "pnpm start",
+      "mode": "service",
+      "category": "dev"
+    },
+    {
+      "name": "typecheck",
+      "command": "pnpm typecheck",
+      "mode": "command",
+      "category": "typecheck"
+    }
+  ]
+}

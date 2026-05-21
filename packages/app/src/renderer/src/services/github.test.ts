@@ -88,14 +88,14 @@ describe("fetchPullRequestFromGitHub", () => {
 });
 
 describe("fetchOpenPullRequestsFromGitHub", () => {
-  it("fetches open pull request summaries for the authenticated user", async () => {
+  it("fetches open pull request summaries requesting review from the authenticated user", async () => {
     vi.mocked(getGitHubToken).mockResolvedValue("github-token");
     mockFetch((url) => {
       if (url.endsWith("/user")) {
         return jsonResponse({ login: "octocat" });
       }
 
-      expect(url).toContain("author%3Aoctocat");
+      expect(url).toContain("review-requested%3Aoctocat");
       return jsonResponse({
         items: [
           {
