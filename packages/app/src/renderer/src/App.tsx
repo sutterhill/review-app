@@ -7,11 +7,15 @@ import { ChangedFileTree } from "./components/FileTree";
 import { Login } from "./components/Login";
 import { NarrativeView } from "./components/NarrativeView";
 import { PRList } from "./components/PRList";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { selectIsAuthenticated } from "./store/auth/auth-selectors";
 import {
   selectNarrativeContent,
   selectNarrativeError,
+  selectNarrativeStatus,
 } from "./store/narrative/narrative-selectors";
+import { narrativeActions } from "./store/narrative/narrative-slice";
 import { selectPrData, selectPrError } from "./store/pr/pr-selectors";
 import { prActions } from "./store/pr/pr-slice";
 import type { AppDispatch } from "./store/store";
@@ -23,9 +27,11 @@ const PullRequestRoute = (): React.JSX.Element => {
   const prError = useSelector(selectPrError);
   const narrativeContent = useSelector(selectNarrativeContent);
   const narrativeError = useSelector(selectNarrativeError);
+  const narrativeStatus = useSelector(selectNarrativeStatus);
   const routeReference = owner && repo && number ? `${owner}/${repo}#${number}` : "";
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const fileElements = useRef(new Map<string, HTMLElement>());
+  const isNarrativeGenerating = narrativeStatus === "loading" || narrativeStatus === "streaming";
 
   useEffect(() => {
     if (routeReference) {
@@ -36,6 +42,12 @@ const PullRequestRoute = (): React.JSX.Element => {
   useEffect(() => {
     setSelectedFilePath(prData?.files[0]?.filename ?? null);
   }, [prData]);
+
+  useEffect(() => {
+    if (prData) {
+      dispatch(narrativeActions.loadCachedNarrative());
+    }
+  }, [dispatch, prData]);
 
   const handleFileElement = useCallback((path: string, element: HTMLElement | null): void => {
     if (element) {
@@ -104,19 +116,51 @@ const PullRequestRoute = (): React.JSX.Element => {
               Back to pull requests
             </Link>
           )}
-          {narrativeError ? <p className="text-sm text-destructive">{narrativeError}</p> : null}
           {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
         </header>
         {prData ? (
-          narrativeContent ? (
-            <NarrativeView
-              narrative={narrativeContent}
-              onFileElement={handleFileElement}
-              pullRequest={prData}
-            />
-          ) : (
-            <DiffView onFileElement={handleFileElement} pullRequest={prData} />
-          )
+          <Tabs className="p-4" defaultValue="diff">
+            <TabsList variant="line">
+              <TabsTrigger value="diff">Diff</TabsTrigger>
+              <TabsTrigger value="narrative">
+                Narrative
+                {isNarrativeGenerating ? (
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+                ) : null}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="diff">
+              <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+            </TabsContent>
+            <TabsContent value="narrative">
+              {narrativeStatus === "loading" ? (
+                <div className="flex max-w-[70ch] flex-col gap-3" aria-live="polite">
+                  <p className="text-sm text-muted-foreground">Generating narrative…</p>
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-4/5" />
+                </div>
+              ) : narrativeContent ? (
+                <div className="flex flex-col gap-3">
+                  {isNarrativeGenerating ? (
+                    <p className="text-sm text-muted-foreground" aria-live="polite">
+                      Generating narrative…
+                    </p>
+                  ) : null}
+                  <NarrativeView
+                    narrative={narrativeContent}
+                    onFileElement={handleFileElement}
+                    pullRequest={prData}
+                  />
+                </div>
+              ) : narrativeStatus === "streaming" ? (
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  Generating narrative…
+                </p>
+              ) : narrativeError ? (
+                <p className="text-sm text-destructive">{narrativeError}</p>
+              ) : null}
+            </TabsContent>
+          </Tabs>
         ) : null}
       </div>
     </div>
