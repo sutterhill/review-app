@@ -1,9 +1,10 @@
 import { PatchDiff } from "@pierre/diffs/react";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange } from "../../store/walkthrough/walkthrough-types";
@@ -12,16 +13,20 @@ import { parseUnifiedDiff } from "../DiffView/diff-parser";
 
 interface FileOverlayPanelProps {
   emphasizedRanges?: LineRange[];
+  isViewed?: boolean;
   onClose: () => void;
   onOpenInChanges: () => void;
+  onToggleViewed?: (path: string, viewed: boolean) => void;
   pullRequest: PullRequestData;
   selectedPath: string;
 }
 
 export const FileOverlayPanel = ({
   emphasizedRanges,
+  isViewed = false,
   onClose,
   onOpenInChanges,
+  onToggleViewed,
   pullRequest,
   selectedPath,
 }: FileOverlayPanelProps): React.JSX.Element => {
@@ -71,12 +76,10 @@ export const FileOverlayPanel = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
-            <h3 className="min-w-0 truncate font-mono text-sm font-semibold text-foreground">
-              {fileName}
-            </h3>
+            <h3 className="min-w-0 truncate text-sm font-semibold text-foreground">{fileName}</h3>
           </div>
           {directory ? (
-            <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{directory}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{directory}</p>
           ) : null}
           <div className="mt-2 flex items-center gap-3 text-xs">
             <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
@@ -90,14 +93,33 @@ export const FileOverlayPanel = ({
             </button>
           </div>
         </div>
-        <button
-          aria-label="Close file"
-          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={onClose}
-          type="button"
-        >
-          <X className="size-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onToggleViewed ? (
+            <button
+              aria-label={isViewed ? "Mark as unviewed" : "Mark as viewed"}
+              aria-pressed={isViewed}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                isViewed
+                  ? "border-foreground/60 bg-foreground/10 text-foreground"
+                  : "border-border/60 bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+              onClick={() => onToggleViewed(file.filename, !isViewed)}
+              type="button"
+            >
+              <Check className={cn("size-3.5", isViewed ? "opacity-100" : "opacity-40")} />
+              {isViewed ? "Viewed" : "Mark as viewed"}
+            </button>
+          ) : null}
+          <button
+            aria-label="Close file"
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
       </header>
       <Separator />
       <div className="flex-1 overflow-auto" ref={containerRef}>
