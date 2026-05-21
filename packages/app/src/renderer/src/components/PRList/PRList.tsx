@@ -37,13 +37,10 @@ export const PRList = (): React.JSX.Element => {
   const isLoading = status === "loading";
 
   return (
-    <div className="mx-auto w-full max-w-7xl p-4">
+    <div className="mx-auto w-full max-w-7xl rounded-lg bg-muted/30 p-4">
       <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold">Pull requests to review</h1>
-          <p className="text-sm text-muted-foreground">
-            Review requests grouped by repository. Set up each repo once, then open a PR.
-          </p>
+          <h1 className="text-lg font-semibold">Reviews</h1>
         </div>
         <Button
           disabled={isLoading}
