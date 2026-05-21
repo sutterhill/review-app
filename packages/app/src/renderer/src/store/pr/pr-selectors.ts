@@ -2,10 +2,16 @@ import type { RootState } from "../store";
 import type {
   PrFetchError,
   PrRequestStatus,
+  PullRequestComment,
   PullRequestData,
   PullRequestSummary,
 } from "./pr-types";
 
+export const selectPrComments = (state: RootState): PullRequestComment[] => state.pr.comments;
+export const selectPrCommentsError = (state: RootState): PrFetchError | null =>
+  state.pr.commentsError;
+export const selectPrCommentsStatus = (state: RootState): PrRequestStatus =>
+  state.pr.commentsStatus;
 export const selectPrData = (state: RootState): PullRequestData | null => state.pr.data;
 export const selectPrError = (state: RootState): PrFetchError | null => state.pr.error;
 export const selectPrReference = (state: RootState): string => state.pr.reference;

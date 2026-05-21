@@ -11,7 +11,7 @@ const initialState: OrchestratorState = {
   sessions: {},
   workflow: {
     error: null,
-    narrative: "",
+    walkthrough: "",
     repoKeys: [],
     status: "idle",
     synthesisSessionKey: null,
@@ -46,7 +46,7 @@ export const orchestratorSlice = createSlice({
       );
       state.workflow = {
         error: null,
-        narrative: "",
+        walkthrough: "",
         repoKeys: action.payload.repos.map((repo) => repo.repoKey),
         status: "running",
         synthesisSessionKey: null,
@@ -58,7 +58,7 @@ export const orchestratorSlice = createSlice({
     },
     workflowSucceeded(state, action: PayloadAction<string>) {
       state.workflow.error = null;
-      state.workflow.narrative = action.payload;
+      state.workflow.walkthrough = action.payload;
       state.workflow.status = "succeeded";
     },
     sessionFailed(state, action: PayloadAction<{ error: string; repoKey: string }>) {

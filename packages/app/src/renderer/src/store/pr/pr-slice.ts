@@ -1,8 +1,17 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { PrFetchError, PrState, PullRequestData, PullRequestSummary } from "./pr-types";
+import type {
+  PrFetchError,
+  PrState,
+  PullRequestComment,
+  PullRequestData,
+  PullRequestSummary,
+} from "./pr-types";
 
 const initialState: PrState = {
+  comments: [],
+  commentsError: null,
+  commentsStatus: "idle",
   data: null,
   error: null,
   openPullRequests: [],
@@ -17,6 +26,9 @@ export const prSlice = createSlice({
   name: "pr",
   reducers: {
     fetchPr(state, action: PayloadAction<string>) {
+      state.comments = [];
+      state.commentsError = null;
+      state.commentsStatus = "idle";
       state.data = null;
       state.error = null;
       state.reference = action.payload;
@@ -30,6 +42,21 @@ export const prSlice = createSlice({
       state.data = action.payload;
       state.error = null;
       state.status = "succeeded";
+      state.commentsError = null;
+      state.commentsStatus = "loading";
+    },
+    fetchComments(state) {
+      state.commentsError = null;
+      state.commentsStatus = "loading";
+    },
+    fetchCommentsFailed(state, action: PayloadAction<PrFetchError>) {
+      state.commentsError = action.payload;
+      state.commentsStatus = "failed";
+    },
+    fetchCommentsSucceeded(state, action: PayloadAction<PullRequestComment[]>) {
+      state.comments = action.payload;
+      state.commentsError = null;
+      state.commentsStatus = "succeeded";
     },
     fetchOpenPullRequests(state) {
       state.openPullRequestsError = null;

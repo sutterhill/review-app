@@ -1,6 +1,7 @@
 import type {
   GitHubAccount,
   PrErrorCode,
+  PullRequestComment,
   PullRequestData,
   PullRequestFile,
   PullRequestFileStatus,
@@ -38,6 +39,14 @@ interface GitHubPullResponse {
   requested_reviewers?: GitHubUserResponse[];
   state?: "closed" | "open";
   title?: string;
+  updated_at?: string;
+  user?: GitHubUserResponse | null;
+}
+
+interface GitHubCommentResponse {
+  body?: string | null;
+  created_at?: string;
+  id?: number;
   updated_at?: string;
   user?: GitHubUserResponse | null;
 }
@@ -113,6 +122,23 @@ export const fetchPullRequestFromGitHub = async (reference: string): Promise<Pul
     files,
     metadata: toPullRequestMetadata(reference, pullReference, pull),
   };
+};
+
+export const fetchPullRequestComments = async (
+  reference: string,
+): Promise<PullRequestComment[]> => {
+  const pullReference = parsePullRequestReference(reference);
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const path = `/repos/${encodeURIComponent(pullReference.owner)}/${encodeURIComponent(
+    pullReference.repo,
+  )}/issues/${pullReference.number}/comments`;
+  const response = await requestGitHub<GitHubCommentResponse[]>(path, token);
+  return response.map(toComment);
 };
 
 export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSummary[]> => {
@@ -250,6 +276,14 @@ const toPullRequestMetadata = (
   state: pull.state ?? "open",
   title: pull.title ?? "Untitled pull request",
   updatedAt: pull.updated_at ?? "",
+});
+
+const toComment = (comment: GitHubCommentResponse): PullRequestComment => ({
+  author: toGitHubAccount(comment.user),
+  body: comment.body ?? "",
+  createdAt: comment.created_at ?? "",
+  id: comment.id ?? 0,
+  updatedAt: comment.updated_at ?? "",
 });
 
 const toPullRequestFile = (file: GitHubFileResponse): PullRequestFile => ({

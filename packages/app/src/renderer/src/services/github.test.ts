@@ -4,6 +4,7 @@ import { getGitHubToken } from "./auth";
 import {
   GitHubApiError,
   fetchOpenPullRequestsFromGitHub,
+  fetchPullRequestComments,
   fetchPullRequestFromGitHub,
   parsePullRequestReference,
 } from "./github";
@@ -129,6 +130,40 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         updatedAt: "2026-05-21T00:00:00.000Z",
       },
     ]);
+  });
+});
+
+describe("fetchPullRequestComments", () => {
+  it("fetches issue comments for a pull request", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    const fetchMock = mockFetch((url) => {
+      expect(url).toBe("https://api.github.com/repos/acme/repo/issues/42/comments");
+      return jsonResponse([
+        {
+          body: "Looks good.",
+          created_at: "2026-05-21T00:00:00.000Z",
+          id: 100,
+          updated_at: "2026-05-21T01:00:00.000Z",
+          user: { avatar_url: null, html_url: "https://github.com/reviewer", login: "reviewer" },
+        },
+      ]);
+    });
+
+    await expect(fetchPullRequestComments("acme/repo#42")).resolves.toEqual([
+      {
+        author: { avatarUrl: null, login: "reviewer", url: "https://github.com/reviewer" },
+        body: "Looks good.",
+        createdAt: "2026-05-21T00:00:00.000Z",
+        id: 100,
+        updatedAt: "2026-05-21T01:00:00.000Z",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/repo/issues/42/comments",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer github-token" }),
+      }),
+    );
   });
 });
 

@@ -1,14 +1,16 @@
-import { call, put } from "redux-saga/effects";
+import { call, put, select } from "redux-saga/effects";
 import { describe, expect, it } from "vitest";
 
 import {
   GitHubApiError,
   fetchOpenPullRequestsFromGitHub,
+  fetchPullRequestComments,
   fetchPullRequestFromGitHub,
 } from "../../../services/github";
+import { selectPrReference } from "../pr-selectors";
 import { prActions } from "../pr-slice";
-import type { PullRequestData, PullRequestSummary } from "../pr-types";
-import { fetchOpenPullRequestsSaga, fetchPrSaga } from "./pr-saga";
+import type { PullRequestComment, PullRequestData, PullRequestSummary } from "../pr-types";
+import { fetchCommentsSaga, fetchOpenPullRequestsSaga, fetchPrSaga } from "./pr-saga";
 
 const pullRequest: PullRequestData = {
   diff: "diff --git a/src/app.ts b/src/app.ts",
@@ -43,6 +45,14 @@ const summary: PullRequestSummary = {
   updatedAt: "2026-05-20T00:00:00.000Z",
 };
 
+const comment: PullRequestComment = {
+  author: { avatarUrl: null, login: "reviewer", url: "" },
+  body: "Looks good.",
+  createdAt: "2026-05-21T00:00:00.000Z",
+  id: 100,
+  updatedAt: "2026-05-21T00:00:00.000Z",
+};
+
 describe("prSaga", () => {
   it("fetches one pull request", () => {
     const generator = fetchPrSaga(prActions.fetchPr("acme/repo#1"));
@@ -58,6 +68,19 @@ describe("prSaga", () => {
     expect(generator.next().value).toEqual(call(fetchOpenPullRequestsFromGitHub));
     expect(generator.next([summary]).value).toEqual(
       put(prActions.fetchOpenPullRequestsSucceeded([summary])),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("fetches pull request comments for the current reference", () => {
+    const generator = fetchCommentsSaga();
+
+    expect(generator.next().value).toEqual(select(selectPrReference));
+    expect(generator.next("acme/repo#1").value).toEqual(
+      call(fetchPullRequestComments, "acme/repo#1"),
+    );
+    expect(generator.next([comment]).value).toEqual(
+      put(prActions.fetchCommentsSucceeded([comment])),
     );
     expect(generator.next().done).toBe(true);
   });

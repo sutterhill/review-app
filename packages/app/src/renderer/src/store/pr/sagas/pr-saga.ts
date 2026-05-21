@@ -1,13 +1,20 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
-import { all, call, put, takeLatest } from "redux-saga/effects";
+import { all, call, put, select, takeLatest } from "redux-saga/effects";
 
 import {
   GitHubApiError,
   fetchOpenPullRequestsFromGitHub,
+  fetchPullRequestComments,
   fetchPullRequestFromGitHub,
 } from "../../../services/github";
+import { selectPrReference } from "../pr-selectors";
 import { prActions } from "../pr-slice";
-import type { PrFetchError, PullRequestData, PullRequestSummary } from "../pr-types";
+import type {
+  PrFetchError,
+  PullRequestComment,
+  PullRequestData,
+  PullRequestSummary,
+} from "../pr-types";
 
 export function* fetchPrSaga(action: PayloadAction<string>): Generator {
   try {
@@ -27,10 +34,22 @@ export function* fetchOpenPullRequestsSaga(): Generator {
   }
 }
 
+export function* fetchCommentsSaga(): Generator {
+  try {
+    const reference = (yield select(selectPrReference)) as string;
+    const comments = (yield call(fetchPullRequestComments, reference)) as PullRequestComment[];
+    yield put(prActions.fetchCommentsSucceeded(comments));
+  } catch (error) {
+    yield put(prActions.fetchCommentsFailed(toPrFetchError(error)));
+  }
+}
+
 export function* prSaga(): Generator {
   yield all([
+    takeLatest(prActions.fetchComments.type, fetchCommentsSaga),
     takeLatest(prActions.fetchOpenPullRequests.type, fetchOpenPullRequestsSaga),
     takeLatest(prActions.fetchPr.type, fetchPrSaga),
+    takeLatest(prActions.fetchPrSucceeded.type, fetchCommentsSaga),
   ]);
 }
 

@@ -8,5 +8,5 @@ export const selectOrchestratorSessions = (
 export const selectOrchestratorWorkflow = (state: RootState): WorkflowState =>
   state.orchestrator.workflow;
 
-export const selectCrossRepoNarrative = (state: RootState): string =>
-  state.orchestrator.workflow.narrative;
+export const selectCrossRepoWalkthrough = (state: RootState): string =>
+  state.orchestrator.workflow.walkthrough;

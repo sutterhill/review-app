@@ -53,8 +53,6 @@ The point is to get to the semantic meaning of what changed and why. Frame the P
 
 Structure the document as:
 
-Do not include a title heading, author name, or branch information — these are already displayed in the application UI.
-
 1. One short paragraph TL;DR — what this PR is, in plain language.
 2. Body — 3–8 prose sections, each:
    - Has a descriptive ## heading naming the change, not the file.
@@ -72,6 +70,7 @@ Do not include a title heading, author name, or branch information — these are
 - Refer to functions, types, and files by their real names, in backticks, with paths where useful for navigation.
 - Be specific. "Adds caching" is weak; "Caches the resolved userId → tenantId lookup in authCache, with a 30s TTL, so the hot path in handleRequest avoids a round-trip to Postgres" is the target.
 - Use a single horizontal rule (---) after the opening TL;DR paragraph to separate it from the body sections. Do not use horizontal rules anywhere else.
+- Do not include a title heading, author name, or branch information — these are already displayed in the application UI.
 
 ## Diff hunk formatting
 

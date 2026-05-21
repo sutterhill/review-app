@@ -27,7 +27,7 @@ export interface OrchestratorSessionState {
 
 export interface WorkflowState {
   error: string | null;
-  narrative: string;
+  walkthrough: string;
   repoKeys: string[];
   status: OrchestratorWorkflowStatus;
   synthesisSessionKey: string | null;

@@ -102,6 +102,85 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@property --cube-rotateX {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@property --cube-rotateY {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes cube-rotate {
+  from {
+    --cube-rotateX: 0deg;
+    --cube-rotateY: 0deg;
+  }
+  to {
+    --cube-rotateX: 360deg;
+    --cube-rotateY: 360deg;
+  }
+}
+
+.cube-loader {
+  --size: 80px;
+  position: relative;
+  height: var(--size);
+  width: var(--size);
+  transform-style: preserve-3d;
+  animation: cube-rotate 6s infinite linear;
+  transform: rotateX(var(--cube-rotateX)) rotateY(var(--cube-rotateY));
+}
+
+.cube-loader-side {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    to bottom right,
+    var(--muted),
+    color-mix(in oklch, var(--muted) 30%, transparent)
+  );
+  backdrop-filter: blur(4px);
+}
+
+.cube-loader-side:nth-of-type(1),
+.cube-loader-side:nth-of-type(2) {
+  height: var(--size);
+  width: var(--size);
+  transform: translate(-50%, -50%) translate3d(0, 0, calc(var(--size) * 0.5));
+}
+
+.cube-loader-side:nth-of-type(2) {
+  transform: translate(-50%, -50%) translate3d(0, 0, calc(var(--size) * -0.5));
+}
+
+.cube-loader-side:nth-of-type(3),
+.cube-loader-side:nth-of-type(4) {
+  height: var(--size);
+  width: var(--size);
+  transform: translate(-50%, -50%) rotateY(90deg) translate3d(0, 0, calc(var(--size) * 0.5));
+}
+
+.cube-loader-side:nth-of-type(4) {
+  transform: translate(-50%, -50%) rotateY(-90deg) translate3d(0, 0, calc(var(--size) * 0.5));
+}
+
+.cube-loader-side:nth-of-type(5),
+.cube-loader-side:nth-of-type(6) {
+  height: var(--size);
+  width: var(--size);
+  transform: translate(-50%, -50%) rotateX(-90deg) translate3d(0, 0, calc(var(--size) * 0.5));
+}
+
+.cube-loader-side:nth-of-type(6) {
+  transform: translate(-50%, -50%) rotateX(90deg) translate3d(0, 0, calc(var(--size) * 0.5));
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

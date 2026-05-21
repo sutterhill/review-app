@@ -10,7 +10,7 @@ describe("orchestratorReducer", () => {
       sessions: {},
       workflow: {
         error: null,
-        narrative: "",
+        walkthrough: "",
         repoKeys: [],
         status: "idle",
         synthesisSessionKey: null,

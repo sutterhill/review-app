@@ -119,7 +119,7 @@ const formatSynthesisPrompt = (
     .map((review) => `## ${review.repoKey}\nRepository: ${review.cwd}\n\n${review.result}`)
     .join("\n\n");
 
-  return `${synthesisPrompt ?? "Generate a unified cross-repository PR narrative walkthrough."}
+  return `${synthesisPrompt ?? "Generate a unified cross-repository PR walkthrough."}
 
 Connect related backend/frontend or package changes, call out integration risks, and summarize coordinated test coverage.
 
