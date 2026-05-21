@@ -9,6 +9,17 @@ export interface WalkthroughHeading {
   text: string;
 }
 
+export interface AnchoredDiff {
+  anchorId: string;
+  code: string;
+  label?: string;
+}
+
+export interface WalkthroughLayout {
+  diffs: AnchoredDiff[];
+  prose: string;
+}
+
 export type WalkthroughChunk =
   | { markdown: string; type: "prose" }
   | { code: string; label?: string; type: "diff" };
@@ -32,30 +43,21 @@ export const extractWalkthroughHeadings = (walkthrough: string): WalkthroughHead
   return headings;
 };
 
-export const splitIntoChunks = (markdown: string): WalkthroughChunk[] => {
-  const chunks: WalkthroughChunk[] = [];
+export const buildWalkthroughLayout = (walkthrough: string): WalkthroughLayout => {
   const proseLines: string[] = [];
+  const diffs: AnchoredDiff[] = [];
   let currentDiff: { label?: string; lines: string[] } | null = null;
   let inOtherCodeFence = false;
+  let diffIndex = 0;
 
-  const flushProse = (): void => {
-    const text = proseLines
-      .join("\n")
-      .trim()
-      .replace(/\n{3,}/gu, "\n\n");
-    if (text.length > 0) {
-      chunks.push({ markdown: text, type: "prose" });
-    }
-    proseLines.length = 0;
-  };
-
-  for (const line of markdown.split("\n")) {
+  for (const line of walkthrough.split("\n")) {
     const trimmed = line.trim();
 
     if (currentDiff !== null) {
       if (trimmed === "```") {
-        flushProse();
-        chunks.push({ code: currentDiff.lines.join("\n"), label: currentDiff.label, type: "diff" });
+        const anchorId = `diff-anchor-${diffIndex++}`;
+        proseLines.push(`<<DIFF_ANCHOR:${anchorId}>>`);
+        diffs.push({ anchorId, code: currentDiff.lines.join("\n"), label: currentDiff.label });
         currentDiff = null;
       } else {
         currentDiff.lines.push(line);
@@ -88,6 +90,40 @@ export const splitIntoChunks = (markdown: string): WalkthroughChunk[] => {
     }
     proseLines.push("```diff");
     proseLines.push(...currentDiff.lines);
+  }
+
+  return { diffs, prose: proseLines.join("\n").trim() };
+};
+
+export const splitIntoChunks = (markdown: string): WalkthroughChunk[] => {
+  const layout = buildWalkthroughLayout(markdown);
+  const diffByAnchorId = new Map(layout.diffs.map((diff) => [diff.anchorId, diff]));
+  const chunks: WalkthroughChunk[] = [];
+  const proseLines: string[] = [];
+
+  const flushProse = (): void => {
+    const text = proseLines
+      .join("\n")
+      .trim()
+      .replace(/\n{3,}/gu, "\n\n");
+    if (text.length > 0) {
+      chunks.push({ markdown: text, type: "prose" });
+    }
+    proseLines.length = 0;
+  };
+
+  for (const line of layout.prose.split("\n")) {
+    const anchor = line.trim().match(/^<<DIFF_ANCHOR:(.+)>>$/u);
+    if (anchor) {
+      flushProse();
+      const diff = diffByAnchorId.get(anchor[1] ?? "");
+      if (diff) {
+        chunks.push({ code: diff.code, label: diff.label, type: "diff" });
+      }
+      continue;
+    }
+
+    proseLines.push(line);
   }
 
   flushProse();

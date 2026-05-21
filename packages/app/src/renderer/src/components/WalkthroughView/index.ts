@@ -1,10 +1,12 @@
 export { WalkthroughView } from "./WalkthroughView";
 export {
   buildWalkthroughSections,
+  buildWalkthroughLayout,
   extractWalkthroughHeadings,
-  splitProseAndDiffs,
-  type DiffWithLabel,
-  type SplitSection,
+  splitIntoChunks,
+  type AnchoredDiff,
+  type WalkthroughChunk,
   type WalkthroughHeading,
+  type WalkthroughLayout,
   type WalkthroughSection,
 } from "./walkthrough-parser";
