@@ -19,6 +19,7 @@ import {
 import { narrativeActions } from "./store/narrative/narrative-slice";
 import { selectPrData, selectPrError } from "./store/pr/pr-selectors";
 import { prActions } from "./store/pr/pr-slice";
+import { reposActions } from "./store/repos/repos-slice";
 import type { AppDispatch } from "./store/store";
 
 const PullRequestRoute = (): React.JSX.Element => {
@@ -169,7 +170,12 @@ const PullRequestRoute = (): React.JSX.Element => {
 };
 
 export const App = (): React.JSX.Element => {
+  const dispatch = useDispatch<AppDispatch>();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+
+  useEffect(() => {
+    dispatch(reposActions.loadSavedRepos());
+  }, [dispatch]);
 
   return (
     <main className="min-h-screen w-full bg-background text-foreground">

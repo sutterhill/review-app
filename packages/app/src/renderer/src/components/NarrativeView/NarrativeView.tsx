@@ -259,7 +259,10 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
       const lineOccurrences = new Map<string, number>();
 
       return (
-        <pre className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs" key={index}>
+        <pre
+          className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs"
+          key={index}
+        >
           {block.code.split("\n").map((line) => {
             const occurrence = lineOccurrences.get(line) ?? 0;
             let lineClass = "text-foreground";

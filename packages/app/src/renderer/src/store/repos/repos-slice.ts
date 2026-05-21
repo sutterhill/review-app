@@ -7,6 +7,7 @@ import type {
   RepoCheckoutStatus,
   RepoRegistryEntry,
   ReposState,
+  SavedRepoRegistry,
 } from "./repos-types";
 
 const initialState: ReposState = {
@@ -36,6 +37,29 @@ export const reposSlice = createSlice({
       entry.error = null;
       entry.localPath = action.payload.localPath;
       entry.status = "ready";
+      entry.worktrees = null;
+    },
+    hydrateRepoRegistry(state, action: PayloadAction<SavedRepoRegistry>) {
+      for (const entry of Object.values(action.payload)) {
+        state.entries[normalizeRepoKey(entry.fullName)] = {
+          error: null,
+          fullName: entry.fullName,
+          localPath: entry.localPath,
+          status: "ready",
+          worktrees: null,
+        };
+      }
+    },
+    loadSavedRepos() {},
+    setWorktrees(
+      state,
+      action: PayloadAction<{
+        fullName: string;
+        worktrees: Array<{ branch: string; path: string }>;
+      }>,
+    ) {
+      const entry = getOrCreateEntry(state, action.payload.fullName);
+      entry.worktrees = action.payload.worktrees;
     },
   },
 });
@@ -53,6 +77,7 @@ const getOrCreateEntry = (state: ReposState, fullName: string): RepoRegistryEntr
     fullName,
     localPath: null,
     status: "idle",
+    worktrees: null,
   };
 
   return state.entries[key];

@@ -95,6 +95,10 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         return jsonResponse({ login: "octocat" });
       }
 
+      if (url.endsWith("/repos/acme/repo/pulls/5")) {
+        return jsonResponse({ head: { ref: "feature-branch" } });
+      }
+
       expect(url).toContain("review-requested%3Aoctocat");
       return jsonResponse({
         items: [
@@ -114,6 +118,7 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
     await expect(fetchOpenPullRequestsFromGitHub()).resolves.toEqual([
       {
         author: { avatarUrl: null, login: "octocat", url: "https://github.com/octocat" },
+        headRefName: "feature-branch",
         htmlUrl: "https://github.com/acme/repo/pull/5",
         number: 5,
         owner: "acme",

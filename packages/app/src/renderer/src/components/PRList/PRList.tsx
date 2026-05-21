@@ -19,7 +19,7 @@ import { prActions } from "../../store/pr/pr-slice";
 import type { PullRequestSummary } from "../../store/pr/pr-types";
 import { selectRepoEntries } from "../../store/repos/repos-selectors";
 import { normalizeRepoKey, reposActions } from "../../store/repos/repos-slice";
-import type { RepoRegistryEntry } from "../../store/repos/repos-types";
+import type { RepoRegistryEntry, RepoWorktreeEntry } from "../../store/repos/repos-types";
 import type { AppDispatch } from "../../store/store";
 
 export const PRList = (): React.JSX.Element => {
@@ -134,12 +134,18 @@ const PRRepoGroup = ({
         </div>
       </header>
       <div className="flex flex-col border-t">
-        {repoGroup.pullRequests.map((pullRequest, index) => (
-          <Fragment key={pullRequest.reference}>
-            <PRListItem pullRequest={pullRequest} />
-            {index < repoGroup.pullRequests.length - 1 ? <Separator /> : null}
-          </Fragment>
-        ))}
+        {repoGroup.pullRequests.map((pullRequest, index) => {
+          const worktree = repoEntry?.worktrees?.find(
+            (entry) => entry.branch === pullRequest.headRefName,
+          );
+
+          return (
+            <Fragment key={pullRequest.reference}>
+              <PRListItem pullRequest={pullRequest} worktree={worktree} />
+              {index < repoGroup.pullRequests.length - 1 ? <Separator /> : null}
+            </Fragment>
+          );
+        })}
       </div>
     </section>
   );
@@ -147,9 +153,10 @@ const PRRepoGroup = ({
 
 interface PRListItemProps {
   pullRequest: PullRequestSummary;
+  worktree: RepoWorktreeEntry | undefined;
 }
 
-const PRListItem = ({ pullRequest }: PRListItemProps): React.JSX.Element => {
+const PRListItem = ({ pullRequest, worktree }: PRListItemProps): React.JSX.Element => {
   const reviewPath = `/pr/${pullRequest.owner}/${pullRequest.repo}/${pullRequest.number}`;
 
   return (
@@ -172,6 +179,11 @@ const PRListItem = ({ pullRequest }: PRListItemProps): React.JSX.Element => {
           <p className="truncate text-xs text-muted-foreground">
             {pullRequest.author.login} updated {formatUpdatedAt(pullRequest.updatedAt)}
           </p>
+          {worktree ? (
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              worktree: {worktree.path}
+            </p>
+          ) : null}
         </div>
         <Badge className="justify-self-end" variant="secondary">
           #{pullRequest.number}

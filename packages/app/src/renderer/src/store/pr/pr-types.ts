@@ -40,6 +40,7 @@ export interface PullRequestData {
 
 export interface PullRequestSummary {
   author: GitHubAccount;
+  headRefName: string;
   htmlUrl: string;
   number: number;
   owner: string;

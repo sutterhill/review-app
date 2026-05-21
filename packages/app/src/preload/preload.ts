@@ -30,6 +30,9 @@ interface GitHubDevicePollResult {
   status: "authenticated" | "pending" | "slow_down";
 }
 
+type RepoRegistryData = Record<string, { fullName: string; localPath: string }>;
+type RepoWorktreeEntry = { branch: string; path: string };
+
 let narrativeRequestCount = 0;
 let orchestratorRequestCount = 0;
 
@@ -68,9 +71,20 @@ contextBridge.exposeInMainWorld("reviewAppRepos", {
     const localPath = await ipcRenderer.invoke("repo:clone", fullName);
     return typeof localPath === "string" ? localPath : null;
   },
+  loadRegistry: async (): Promise<RepoRegistryData> => {
+    const result = await ipcRenderer.invoke("repos:load-registry");
+    return typeof result === "object" && result !== null ? (result as RepoRegistryData) : {};
+  },
+  listWorktrees: async (repoPath: string): Promise<RepoWorktreeEntry[]> => {
+    const result = await ipcRenderer.invoke("repos:list-worktrees", repoPath);
+    return Array.isArray(result) ? (result as RepoWorktreeEntry[]) : [];
+  },
   locate: async (): Promise<string | null> => {
     const localPath = await ipcRenderer.invoke("repo:locate");
     return typeof localPath === "string" ? localPath : null;
+  },
+  saveRegistry: async (entries: RepoRegistryData): Promise<void> => {
+    await ipcRenderer.invoke("repos:save-registry", entries);
   },
 });
 

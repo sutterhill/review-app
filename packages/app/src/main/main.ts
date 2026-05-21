@@ -8,6 +8,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
 import { loadNarrative, saveNarrative } from "./narrative-storage";
 import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
+import { loadRepoRegistry, saveRepoRegistry, type RepoRegistryData } from "./repo-registry-storage";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -37,6 +38,11 @@ interface DeviceFlowResponse {
 interface DeviceTokenPollResponse {
   interval?: number;
   status: "authenticated" | "pending" | "slow_down";
+}
+
+interface WorktreeEntry {
+  branch: string;
+  path: string;
 }
 
 ipcMain.handle("auth:get-status", async (): Promise<AuthStatusResponse> => getAuthStatus());
@@ -73,6 +79,27 @@ ipcMain.handle("repo:clone", async (_event, fullName: unknown) => {
 });
 
 ipcMain.handle("repo:locate", async () => chooseDirectory("Select a local repository checkout"));
+
+ipcMain.handle("repos:save-registry", async (_event, entries: unknown) => {
+  if (typeof entries !== "object" || entries === null) {
+    throw new Error("Invalid repo registry data.");
+  }
+
+  await saveRepoRegistry(entries as RepoRegistryData);
+});
+
+ipcMain.handle("repos:load-registry", async () => loadRepoRegistry());
+
+ipcMain.handle("repos:list-worktrees", async (_event, repoPath: unknown) => {
+  if (typeof repoPath !== "string") {
+    throw new Error("Invalid repo path.");
+  }
+
+  const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+    cwd: repoPath,
+  });
+  return parseWorktreeOutput(stdout);
+});
 
 ipcMain.handle("narrative:generate", async (event, requestId: unknown, request: unknown) => {
   if (typeof requestId !== "string" || !isNarrativeRequest(request)) {
@@ -379,6 +406,34 @@ const validateRepositoryFullName = (fullName: unknown): string => {
   }
 
   return fullName;
+};
+
+const parseWorktreeOutput = (output: string): WorktreeEntry[] => {
+  const worktrees: WorktreeEntry[] = [];
+  let currentPath: string | null = null;
+  let currentBranch: string | null = null;
+
+  const flushCurrentWorktree = (): void => {
+    if (currentPath && currentBranch) {
+      worktrees.push({ branch: currentBranch.replace(/^refs\/heads\//u, ""), path: currentPath });
+    }
+    currentPath = null;
+    currentBranch = null;
+  };
+
+  for (const line of output.split(/\r?\n/u)) {
+    if (line.length === 0) {
+      flushCurrentWorktree();
+    } else if (line.startsWith("worktree ")) {
+      flushCurrentWorktree();
+      currentPath = line.slice("worktree ".length);
+    } else if (line.startsWith("branch ")) {
+      currentBranch = line.slice("branch ".length);
+    }
+  }
+
+  flushCurrentWorktree();
+  return worktrees;
 };
 
 const getRepositoryDirectoryName = (fullName: string): string => fullName.split("/")[1] ?? fullName;

@@ -26,7 +26,12 @@ declare global {
     };
     reviewAppRepos: {
       clone: (fullName: string) => Promise<string | null>;
+      loadRegistry: () => Promise<Record<string, { fullName: string; localPath: string }>>;
+      listWorktrees: (repoPath: string) => Promise<Array<{ branch: string; path: string }>>;
       locate: () => Promise<string | null>;
+      saveRegistry: (
+        entries: Record<string, { fullName: string; localPath: string }>,
+      ) => Promise<void>;
     };
     reviewAppNarrative: {
       generate: (

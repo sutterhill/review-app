@@ -32,6 +32,7 @@ const pullRequest: PullRequestData = {
 
 const summary: PullRequestSummary = {
   author: { avatarUrl: null, login: "octocat", url: "" },
+  headRefName: "feature-branch",
   htmlUrl: "https://github.com/acme/repo/pull/1",
   number: 1,
   owner: "acme",

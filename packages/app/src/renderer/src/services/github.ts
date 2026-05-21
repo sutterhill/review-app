@@ -31,6 +31,7 @@ interface GitHubLabelResponse {
 interface GitHubPullResponse {
   body?: string | null;
   created_at?: string;
+  head?: { ref?: string };
   html_url?: string;
   labels?: Array<GitHubLabelResponse | string>;
   number?: number;
@@ -133,7 +134,16 @@ export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSumm
     token,
   );
 
-  return (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
+  const summaries = (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
+  return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
+};
+
+const fetchPullRequestSummaryHead = async (
+  summary: PullRequestSummary,
+  token: string,
+): Promise<PullRequestSummary> => {
+  const pull = await requestGitHub<GitHubPullResponse>(createPullPath(summary), token);
+  return { ...summary, headRefName: pull.head?.ref ?? "" };
 };
 
 const fetchPullRequestFiles = async (
@@ -261,6 +271,7 @@ const toPullRequestSummary = (item: GitHubIssueSearchItem): PullRequestSummary |
 
   return {
     author: toGitHubAccount(item.user),
+    headRefName: "",
     htmlUrl: item.html_url ?? "",
     number: item.number,
     owner: repository.owner,

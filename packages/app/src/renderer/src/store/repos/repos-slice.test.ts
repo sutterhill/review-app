@@ -22,6 +22,7 @@ describe("reposReducer", () => {
       error: null,
       localPath: "/repos/repo",
       status: "ready",
+      worktrees: null,
     });
   });
 
@@ -40,5 +41,36 @@ describe("reposReducer", () => {
       localPath: "/repos/repo",
       status: "failed",
     });
+  });
+
+  it("hydrates saved repo paths as ready entries", () => {
+    const state = reposReducer(
+      undefined,
+      reposActions.hydrateRepoRegistry({
+        "acme/repo": { fullName: "Acme/Repo", localPath: "/repos/repo" },
+      }),
+    );
+
+    expect(state.entries["acme/repo"]).toEqual({
+      error: null,
+      fullName: "Acme/Repo",
+      localPath: "/repos/repo",
+      status: "ready",
+      worktrees: null,
+    });
+  });
+
+  it("stores discovered worktrees for repo entries", () => {
+    const state = reposReducer(
+      undefined,
+      reposActions.setWorktrees({
+        fullName: "Acme/Repo",
+        worktrees: [{ branch: "feature-branch", path: "/repos/repo-feature" }],
+      }),
+    );
+
+    expect(state.entries["acme/repo"]?.worktrees).toEqual([
+      { branch: "feature-branch", path: "/repos/repo-feature" },
+    ]);
   });
 });
