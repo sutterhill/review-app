@@ -1,22 +1,78 @@
-import { useMemo, type ReactNode } from "react";
+import {
+  memo,
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
-import { cn } from "@/lib/utils";
-
-import { splitIntoChunks, type WalkthroughChunk } from "./walkthrough-parser";
+import { cn } from "../../lib/utils";
+import { buildWalkthroughLayout } from "./walkthrough-parser";
 
 interface WalkthroughViewProps {
   onFileClick?: (path: string) => void;
+  showDiffs?: boolean;
   walkthrough: string;
 }
 
 export const WalkthroughView = ({
   onFileClick,
+  showDiffs = true,
   walkthrough,
 }: WalkthroughViewProps): React.JSX.Element => {
-  const allChunks = useMemo(() => splitIntoChunks(walkthrough), [walkthrough]);
-  const rows = useMemo(() => buildChunkRows(allChunks), [allChunks]);
+  const [diffsVisible, setDiffsVisible] = useState(showDiffs);
+  const layout = useMemo(() => buildWalkthroughLayout(walkthrough), [walkthrough]);
+  const deferredDiffs = useDeferredValue(layout.diffs);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const proseRef = useRef<HTMLDivElement>(null);
+  const diffContainerRef = useRef<HTMLDivElement>(null);
+  const [anchorLayout, setAnchorLayout] = useState<AnchorLayoutState>({
+    minHeight: 0,
+    positions: {},
+  });
 
-  if (rows.length === 0) {
+  useEffect(() => {
+    if (showDiffs) {
+      startTransition(() => setDiffsVisible(true));
+    } else {
+      setDiffsVisible(false);
+    }
+  }, [showDiffs]);
+
+  useEffect(() => {
+    const gridElement = gridRef.current;
+    const proseElement = proseRef.current;
+    if (!gridElement || !proseElement || !diffsVisible) {
+      return;
+    }
+
+    const measureAnchors = (): void => {
+      const positions = measureDiffPositions(gridElement, proseElement, diffContainerRef.current);
+      setAnchorLayout((previous) =>
+        isSameAnchorLayout(previous, positions) ? previous : positions,
+      );
+    };
+
+    measureAnchors();
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measureAnchors);
+    resizeObserver?.observe(proseElement);
+    if (diffContainerRef.current) {
+      resizeObserver?.observe(diffContainerRef.current);
+    }
+    window.addEventListener("resize", measureAnchors);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureAnchors);
+    };
+  }, [deferredDiffs, diffsVisible, layout]);
+
+  if (!layout.prose) {
     return (
       <p className="text-sm text-muted-foreground">
         Generate a walkthrough to see the guided walkthrough.
@@ -25,109 +81,116 @@ export const WalkthroughView = ({
   }
 
   return (
-    <div className="flex flex-col gap-5" aria-label="Pull request walkthrough">
-      {rows.map((row, index) => {
-        const headingOffset = rows
-          .slice(0, index)
-          .reduce((count, previousRow) => count + countHeadings(previousRow.prose), 0);
-
-        if (row.diffs.length > 0) {
-          return (
+    <div
+      className={cn(
+        "relative grid items-start",
+        diffsVisible && layout.diffs.length > 0
+          ? "grid-cols-[minmax(0,65ch)_minmax(0,1fr)] gap-8"
+          : "grid-cols-[minmax(0,70ch)]",
+      )}
+      aria-label="Pull request walkthrough"
+      ref={gridRef}
+    >
+      <div ref={proseRef}>
+        <WalkthroughProse markdown={layout.prose} onFileClick={onFileClick} />
+      </div>
+      {diffsVisible && layout.diffs.length > 0 ? (
+        <div
+          className="relative"
+          ref={diffContainerRef}
+          style={{ minHeight: anchorLayout.minHeight }}
+        >
+          {deferredDiffs.map((diff) => (
             <div
-              className="grid grid-cols-[minmax(0,65ch)_minmax(0,1fr)] items-start gap-6"
-              key={row.id}
+              className="absolute left-0 right-0 flex flex-col gap-1"
+              data-diff-id={diff.anchorId}
+              key={diff.anchorId}
+              style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
             >
-              <WalkthroughMarkdown
-                headingOffset={headingOffset}
-                markdown={row.prose}
-                onFileClick={onFileClick}
-              />
-              <div className="flex flex-col gap-3">
-                {row.diffs.map((diff) => (
-                  <div
-                    className="flex flex-col gap-1"
-                    key={`${diff.label ?? "diff"}:${diff.code.slice(0, 40)}`}
-                  >
-                    {diff.label ? (
-                      <p className="text-xs italic text-muted-foreground">{diff.label}</p>
-                    ) : null}
-                    <DiffBlock code={diff.code} />
-                  </div>
-                ))}
-              </div>
+              {diff.label ? (
+                <p className="text-xs italic text-muted-foreground">{diff.label}</p>
+              ) : null}
+              <DiffBlock code={diff.code} />
             </div>
-          );
-        }
-
-        return (
-          <WalkthroughMarkdown
-            headingOffset={headingOffset}
-            key={row.id}
-            markdown={row.prose}
-            onFileClick={onFileClick}
-          />
-        );
-      })}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 };
 
-interface ChunkRow {
-  diffs: { code: string; label?: string }[];
-  id: string;
-  prose: string;
+interface AnchorLayoutState {
+  minHeight: number;
+  positions: Record<string, number>;
 }
 
-const buildChunkRows = (chunks: WalkthroughChunk[]): ChunkRow[] => {
-  const rows: ChunkRow[] = [];
-  let currentProse = "";
-  let currentDiffs: { code: string; label?: string }[] = [];
+const DIFF_GAP_PX = 8;
+const FALLBACK_DIFF_HEIGHT_PX = 100;
 
-  for (const chunk of chunks) {
-    if (chunk.type === "prose") {
-      if (currentProse || currentDiffs.length > 0) {
-        rows.push(buildChunkRow(currentProse, currentDiffs, rows.length));
-        currentDiffs = [];
-      }
-      currentProse = chunk.markdown;
-    } else {
-      currentDiffs.push({ code: chunk.code, label: chunk.label });
+const measureDiffPositions = (
+  gridElement: HTMLElement,
+  proseElement: HTMLElement,
+  diffContainerElement: HTMLElement | null,
+): AnchorLayoutState => {
+  const gridTop = gridElement.getBoundingClientRect().top;
+  const rawPositions = [...proseElement.querySelectorAll<HTMLElement>("[data-diff-anchor]")].map(
+    (element) => ({
+      id: element.getAttribute("data-diff-anchor") ?? "",
+      top: element.getBoundingClientRect().top - gridTop,
+    }),
+  );
+  const positions: Record<string, number> = {};
+  let lastBottom: number | null = null;
+
+  for (const { id, top } of rawPositions) {
+    if (!id) {
+      continue;
     }
+    const adjustedTop: number = lastBottom === null ? top : Math.max(top, lastBottom + DIFF_GAP_PX);
+    const diffElement = diffContainerElement?.querySelector<HTMLElement>(`[data-diff-id="${id}"]`);
+    const height = diffElement?.getBoundingClientRect().height ?? FALLBACK_DIFF_HEIGHT_PX;
+    positions[id] = adjustedTop;
+    lastBottom = adjustedTop + height;
   }
 
-  if (currentProse || currentDiffs.length > 0) {
-    rows.push(buildChunkRow(currentProse, currentDiffs, rows.length));
-  }
-
-  return rows;
+  return {
+    minHeight: Math.max(proseElement.getBoundingClientRect().height, lastBottom ?? 0),
+    positions,
+  };
 };
 
-const buildChunkRow = (
-  prose: string,
-  diffs: { code: string; label?: string }[],
-  position: number,
-): ChunkRow => ({
-  diffs: [...diffs],
-  id: `${prose.slice(0, 40)}:${diffs.map((diff) => diff.label ?? diff.code.slice(0, 40)).join("|")}:${position}`,
-  prose,
-});
+const isSameAnchorLayout = (current: AnchorLayoutState, next: AnchorLayoutState): boolean => {
+  if (current.minHeight !== next.minHeight) {
+    return false;
+  }
 
-const WalkthroughMarkdown = ({
-  headingOffset,
+  const currentKeys = Object.keys(current.positions);
+  const nextKeys = Object.keys(next.positions);
+  return (
+    currentKeys.length === nextKeys.length &&
+    nextKeys.every((key) => current.positions[key] === next.positions[key])
+  );
+};
+
+const WalkthroughProse = ({
   markdown,
   onFileClick,
 }: {
-  headingOffset: number;
   markdown: string;
   onFileClick?: (path: string) => void;
 }): React.JSX.Element => {
-  let localHeadingIndex = 0;
+  let headingIndex = 0;
 
   return (
     <article className="flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground">
       {parseMarkdown(markdown).map((block, index) => {
-        const headingId =
-          block.type === "heading" ? `wt-${headingOffset + localHeadingIndex++}` : undefined;
+        if (block.type === "diff-anchor") {
+          return (
+            <span className="block h-0" data-diff-anchor={block.anchorId} key={block.anchorId} />
+          );
+        }
+
+        const headingId = block.type === "heading" ? `wt-${headingIndex++}` : undefined;
 
         return renderMarkdownBlock(block, index, headingId, onFileClick);
       })}
@@ -139,6 +202,7 @@ type MarkdownBlock =
   | { level: number; text: string; type: "heading" }
   | { code: string; language: string; type: "code" }
   | { type: "hr" }
+  | { anchorId: string; type: "diff-anchor" }
   | { ordered: boolean; items: string[]; type: "list" }
   | { text: string; type: "paragraph" };
 
@@ -184,10 +248,15 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
       continue;
     }
 
+    const anchor = line.trim().match(/^<<DIFF_ANCHOR:(.+)>>$/u);
     const heading = line.match(/^(#{1,4})\s+(.+)$/u);
     const listItem = line.match(/^(?:[-*]|([0-9]+)[.)])\s+(.+)$/u);
 
-    if (heading) {
+    if (anchor) {
+      flushParagraph();
+      flushList();
+      blocks.push({ anchorId: anchor[1] ?? "", type: "diff-anchor" });
+    } else if (heading) {
       flushParagraph();
       flushList();
       blocks.push({ level: heading[1]?.length ?? 1, text: heading[2] ?? "", type: "heading" });
@@ -244,6 +313,10 @@ const renderMarkdownBlock = (
 
   if (block.type === "hr") {
     return <hr className="border-border" key={index} />;
+  }
+
+  if (block.type === "diff-anchor") {
+    return null;
   }
 
   if (block.type === "list") {
@@ -305,10 +378,7 @@ const renderHeading = (
   );
 };
 
-const countHeadings = (markdown: string): number =>
-  markdown.split("\n").filter((line) => /^(#{1,4})\s+(.+)$/u.test(line)).length;
-
-const DiffBlock = ({ code }: { code: string }): React.JSX.Element => {
+const DiffBlock = memo(({ code }: { code: string }): React.JSX.Element => {
   const lineOccurrences = new Map<string, number>();
   return (
     <pre className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs">
@@ -327,7 +397,7 @@ const DiffBlock = ({ code }: { code: string }): React.JSX.Element => {
       })}
     </pre>
   );
-};
+});
 
 const renderInlineMarkdown = (text: string, onFileClick?: (path: string) => void): ReactNode[] => {
   const nodes: ReactNode[] = [];

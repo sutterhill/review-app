@@ -94,7 +94,11 @@ export const WalkthroughRoute = (): React.JSX.Element => {
               Generating walkthrough…
             </p>
           ) : null}
-          <WalkthroughView onFileClick={handleFileClick} walkthrough={walkthroughContent} />
+          <WalkthroughView
+            onFileClick={handleFileClick}
+            showDiffs={walkthroughStatus === "succeeded"}
+            walkthrough={walkthroughContent}
+          />
         </div>
       ) : walkthroughStatus === "streaming" ? (
         <p className="text-sm text-muted-foreground" aria-live="polite">

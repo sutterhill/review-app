@@ -7,10 +7,10 @@ import type {
 } from "./services/agent-orchestrator";
 import type { AuthStatusResult, GitHubDeviceFlow, GitHubDevicePollResult } from "./services/auth";
 import type {
-  NarrativeAgentController,
-  NarrativeAgentEvent,
-  NarrativeAgentRequest,
-} from "./services/narrative-agent";
+  WalkthroughAgentController,
+  WalkthroughAgentEvent,
+  WalkthroughAgentRequest,
+} from "./services/walkthrough-agent";
 
 declare global {
   interface Window {
@@ -33,11 +33,11 @@ declare global {
         entries: Record<string, { fullName: string; localPath: string }>,
       ) => Promise<void>;
     };
-    reviewAppNarrative: {
+    reviewAppWalkthrough: {
       generate: (
-        request: NarrativeAgentRequest,
-        onEvent: (event: NarrativeAgentEvent) => void,
-      ) => NarrativeAgentController;
+        request: WalkthroughAgentRequest,
+        onEvent: (event: WalkthroughAgentEvent) => void,
+      ) => WalkthroughAgentController;
       save: (prReference: string, content: string) => Promise<void>;
       load: (prReference: string) => Promise<string | null>;
     };
