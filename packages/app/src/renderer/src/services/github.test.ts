@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GitHubApiError, parsePullRequestReference } from "./github";
+import { getGitHubToken } from "./auth";
+import {
+  GitHubApiError,
+  fetchOpenPullRequestsFromGitHub,
+  fetchPullRequestFromGitHub,
+  parsePullRequestReference,
+} from "./github";
+
+vi.mock("./auth", () => ({
+  getGitHubToken: vi.fn(),
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("parsePullRequestReference", () => {
   it("parses owner/repo#number references", () => {
@@ -16,4 +31,159 @@ describe("parsePullRequestReference", () => {
       parsePullRequestReference("https://github.com/augment/review-app/pull/123"),
     ).toThrow(GitHubApiError);
   });
+});
+
+describe("fetchPullRequestFromGitHub", () => {
+  it("fetches pull request metadata, diff text, and all file pages", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    const fetchMock = mockFetch((url, init) => {
+      const accept = new Headers(init?.headers).get("Accept");
+
+      if (url.endsWith("/files?per_page=100&page=1")) {
+        return jsonResponse(Array.from({ length: 100 }, (_, index) => gitHubFile(index)));
+      }
+
+      if (url.endsWith("/files?per_page=100&page=2")) {
+        return jsonResponse([{ ...gitHubFile(100), status: "removed" }]);
+      }
+
+      if (accept === "application/vnd.github.v3.diff") {
+        return textResponse("diff --git a/src/app.ts b/src/app.ts");
+      }
+
+      return jsonResponse({
+        body: "Adds app value.",
+        created_at: "2026-05-20T00:00:00.000Z",
+        html_url: "https://github.com/acme/repo/pull/42",
+        labels: [{ name: "feature" }, "review"],
+        number: 42,
+        requested_reviewers: [{ login: "reviewer", html_url: "https://github.com/reviewer" }],
+        state: "open",
+        title: "Add app value",
+        updated_at: "2026-05-21T00:00:00.000Z",
+        user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+      });
+    });
+
+    const data = await fetchPullRequestFromGitHub("acme/repo#42");
+
+    expect(data.metadata).toMatchObject({
+      author: { login: "octocat" },
+      labels: ["feature", "review"],
+      number: 42,
+      reference: "acme/repo#42",
+      reviewers: [{ login: "reviewer" }],
+      title: "Add app value",
+    });
+    expect(data.diff).toBe("diff --git a/src/app.ts b/src/app.ts");
+    expect(data.files).toHaveLength(101);
+    expect(data.files[100]).toMatchObject({ filename: "src/file-100.ts", status: "deleted" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/repo/pulls/42/files?per_page=100&page=2",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer github-token" }),
+      }),
+    );
+  });
+});
+
+describe("fetchOpenPullRequestsFromGitHub", () => {
+  it("fetches open pull request summaries for the authenticated user", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      expect(url).toContain("author%3Aoctocat");
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/5",
+            number: 5,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "Open change",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+          { number: 6, title: "Missing repository URL" },
+        ],
+      });
+    });
+
+    await expect(fetchOpenPullRequestsFromGitHub()).resolves.toEqual([
+      {
+        author: { avatarUrl: null, login: "octocat", url: "https://github.com/octocat" },
+        htmlUrl: "https://github.com/acme/repo/pull/5",
+        number: 5,
+        owner: "acme",
+        reference: "acme/repo#5",
+        repo: "repo",
+        repositoryName: "acme/repo",
+        title: "Open change",
+        updatedAt: "2026-05-21T00:00:00.000Z",
+      },
+    ]);
+  });
+});
+
+describe("GitHub API error classification", () => {
+  it.each([
+    { code: "auth_failed", message: "Bad credentials", status: 401 },
+    {
+      code: "rate_limited",
+      message: "GitHub API rate limit exceeded.",
+      status: 403,
+      remaining: "0",
+    },
+    { code: "not_found", message: "GitHub pull request was not found.", status: 404 },
+    { code: "network", message: "Server unavailable", status: 503 },
+  ] as const)(
+    "classifies $status responses as $code",
+    async ({ code, message, remaining, status }) => {
+      vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+      mockFetch(() => jsonResponse({ message }, { status }, remaining));
+
+      await expect(fetchOpenPullRequestsFromGitHub()).rejects.toMatchObject({
+        code,
+        message,
+        status,
+      });
+    },
+  );
+});
+
+const mockFetch = (
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+): ReturnType<typeof vi.fn> => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+    handler(String(input), init),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+};
+
+const jsonResponse = (
+  body: unknown,
+  init: ResponseInit = {},
+  rateLimitRemaining?: string,
+): Response => {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  if (rateLimitRemaining !== undefined) {
+    headers.set("x-ratelimit-remaining", rateLimitRemaining);
+  }
+
+  return new Response(JSON.stringify(body), { ...init, headers });
+};
+
+const textResponse = (body: string): Response => new Response(body, { status: 200 });
+
+const gitHubFile = (index: number) => ({
+  additions: 1,
+  changes: 2,
+  deletions: 1,
+  filename: `src/file-${index}.ts`,
+  patch: `@@ -1 +1 @@\n-export const value = ${index};\n+export const value = ${index + 1};`,
+  status: "modified",
 });
