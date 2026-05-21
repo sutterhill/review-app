@@ -67,7 +67,7 @@ export const FileDiffPanel = ({
         <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={visiblePatch} />
         {overflows ? (
           <button
-            className="sticky bottom-0 left-0 z-[1] flex w-full items-center justify-center border-t border-border/40 bg-background/95 px-2 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm hover:text-foreground"
+            className="sticky bottom-0 left-0 z-[1] flex w-full items-center justify-center border-t border-border/40 bg-background/95 px-2 py-0.5 text-[0.7rem] text-muted-foreground backdrop-blur-sm hover:text-foreground"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -96,17 +96,17 @@ const FileNameHeader = ({
   onOpen,
   onToggleViewed,
 }: FileNameHeaderProps): React.JSX.Element => (
-  <div className="flex min-w-0 items-baseline gap-2 px-1">
+  <div className="sticky top-[10rem] z-10 flex min-w-0 items-baseline gap-2 bg-background px-1 py-1">
     <button
       className="group flex min-w-0 flex-1 items-baseline gap-2 text-left"
       onClick={() => onOpen(file.filename)}
       type="button"
     >
-      <span className="min-w-0 truncate font-mono text-[0.78rem] font-medium text-foreground group-hover:underline">
+      <span className="min-w-0 truncate text-[0.78rem] font-medium text-foreground group-hover:underline">
         {fileName}
       </span>
       {directory ? (
-        <span className="min-w-0 truncate font-mono text-[0.7rem] text-muted-foreground">
+        <span className="min-w-0 truncate text-[0.7rem] text-muted-foreground">
           {directory}
         </span>
       ) : null}
