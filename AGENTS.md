@@ -11,14 +11,11 @@
 
 ## Redux Saga Architecture
 
-- Redux state must be JSON serializable: no `Date`, `Map`, `Set`, functions, class instances,
-  promises, generators, DOM nodes, or Electron runtime objects.
+- Redux state must be JSON serializable: no `Date`, `Map`, `Set`, functions, class instances,promises, generators, DOM nodes, or Electron runtime objects.
 - Convert dates to ISO strings before dispatching actions.
 - Use `createSlice` from `@reduxjs/toolkit`; action types must follow `sliceName/actionName`.
-- Reducers must be deterministic and side-effect free. Do not generate timestamps, random IDs, or
-  perform IO in reducers.
-- Side effects belong in sagas only: API calls, localStorage, timers, IPC, retries, debouncing,
-  polling, and navigation caused by async workflows.
+- Reducers must be deterministic and side-effect free. Do not generate timestamps, random IDs, orperform IO in reducers.
+- Side effects belong in sagas only: API calls, localStorage, timers, IPC, retries, debouncing,polling, and navigation caused by async workflows.
 
 ## Store File Organization
 
@@ -37,12 +34,9 @@ packages/app/src/renderer/store/<domain>/
 
 ## Import Boundaries
 
-- Components may import actions from `*-slice.ts`, selectors from `*-selectors.ts`, and types from
-  `*-types.ts`.
-- Components must never import saga files, store setup internals, reducer internals, or services that
-  perform side effects directly.
-- Services may import actions, selectors, and serializable types. Services must not import React
-  components.
+- Components may import actions from `*-slice.ts`, selectors from `*-selectors.ts`, and types from`*-types.ts`.
+- Components must never import saga files, store setup internals, reducer internals, or services thatperform side effects directly.
+- Services may import actions, selectors, and serializable types. Services must not import Reactcomponents.
 - Sagas may import services, actions, selectors, and types for their domain.
 - Preload and main-process code must not import renderer store modules.
 
@@ -51,8 +45,7 @@ packages/app/src/renderer/store/<domain>/
 - Use Vitest for unit tests.
 - Keep tests colocated with the code under test.
 - Every slice needs a colocated `*-slice.test.ts` covering initial state, reducers, and edge cases.
-- Every saga with branching or IO needs a colocated saga test using `redux-saga-test-plan` or explicit
-  generator stepping.
+- Every saga with branching or IO needs a colocated saga test using `redux-saga-test-plan` or explicitgenerator stepping.
 - Update or add tests in the same task that changes behavior.
 
 ## Commands

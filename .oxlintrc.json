@@ -17,5 +17,13 @@
     "no-await-in-loop": "off",
     "react/jsx-filename-extension": "off",
     "react/react-in-jsx-scope": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/app/src/renderer/src/components/WalkthroughView/WalkthroughStep.tsx"],
+      "rules": {
+        "react/no-array-index-key": "off"
+      }
+    }
+  ]
 }

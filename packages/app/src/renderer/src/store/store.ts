@@ -6,6 +6,7 @@ import { orchestratorReducer } from "./orchestrator/orchestrator-slice";
 import { prReducer } from "./pr/pr-slice";
 import { reposReducer } from "./repos/repos-slice";
 import { rootSaga } from "./root-saga";
+import { viewedFilesReducer } from "./viewed-files/viewed-files-slice";
 import { walkthroughReducer } from "./walkthrough/walkthrough-slice";
 
 const sagaMiddleware = createSagaMiddleware();
@@ -19,6 +20,7 @@ export const store = configureStore({
     orchestrator: orchestratorReducer,
     pr: prReducer,
     repos: reposReducer,
+    viewedFiles: viewedFilesReducer,
   },
 });
 

@@ -1,8 +1,10 @@
 import { PatchDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
+import { Check } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 import type { PullRequestData } from "../../store/pr/pr-types";
 import { DIFF_OPTIONS, statusBadgeVariant, statusLabel } from "../diff-utils";
@@ -25,10 +27,17 @@ const EAGER_DIFF_FILE_COUNT = 3;
 
 interface DiffViewProps {
   onFileElement(path: string, element: HTMLElement | null): void;
+  onToggleViewed?: (path: string, viewed: boolean) => void;
   pullRequest: PullRequestData;
+  viewedPaths?: ReadonlySet<string>;
 }
 
-export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.JSX.Element => {
+export const DiffView = ({
+  onFileElement,
+  onToggleViewed,
+  pullRequest,
+  viewedPaths,
+}: DiffViewProps): React.JSX.Element => {
   const files = useMemo(
     () => parseUnifiedDiff(pullRequest.diff, pullRequest.files),
     [pullRequest.diff, pullRequest.files],
@@ -52,8 +61,10 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
           <LazyDiffFile
             eager={index < EAGER_DIFF_FILE_COUNT}
             file={file}
+            isViewed={viewedPaths?.has(file.path) ?? false}
             key={file.path}
             onFileElement={onFileElement}
+            onToggleViewed={onToggleViewed}
           />
         ))}
       </div>
@@ -64,11 +75,19 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
 interface LazyDiffFileProps {
   eager?: boolean;
   file: ParsedDiffFile;
+  isViewed: boolean;
   onFileElement(path: string, element: HTMLElement | null): void;
+  onToggleViewed?: (path: string, viewed: boolean) => void;
 }
 
 const LazyDiffFile = memo(
-  ({ eager = false, file, onFileElement }: LazyDiffFileProps): React.JSX.Element => {
+  ({
+    eager = false,
+    file,
+    isViewed,
+    onFileElement,
+    onToggleViewed,
+  }: LazyDiffFileProps): React.JSX.Element => {
     const sectionRef = useRef<HTMLElement | null>(null);
     const [isVisible, setIsVisible] = useState(eager);
 
@@ -111,11 +130,14 @@ const LazyDiffFile = memo(
 
     return (
       <section
-        className="scroll-mt-4 overflow-hidden border bg-background"
+        className={cn(
+          "scroll-mt-4 overflow-hidden border bg-background transition-opacity",
+          isViewed && "opacity-60",
+        )}
         data-change-status={file.status}
         ref={setSectionElement}
       >
-        <DiffFileHeader file={file} />
+        <DiffFileHeader file={file} isViewed={isViewed} onToggleViewed={onToggleViewed} />
         <Separator />
         {isVisible && file.patch ? (
           <PatchDiff options={DIFF_OPTIONS} patch={file.patch} />
@@ -133,7 +155,17 @@ const LazyDiffFile = memo(
   },
 );
 
-const DiffFileHeader = ({ file }: { file: ParsedDiffFile }): React.JSX.Element => (
+interface DiffFileHeaderProps {
+  file: ParsedDiffFile;
+  isViewed: boolean;
+  onToggleViewed?: (path: string, viewed: boolean) => void;
+}
+
+const DiffFileHeader = ({
+  file,
+  isViewed,
+  onToggleViewed,
+}: DiffFileHeaderProps): React.JSX.Element => (
   <header className="flex items-center justify-between gap-4 bg-muted px-4 py-3">
     <div className="min-w-0">
       <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
@@ -147,6 +179,22 @@ const DiffFileHeader = ({ file }: { file: ParsedDiffFile }): React.JSX.Element =
     <div className="flex shrink-0 items-center gap-2" aria-label="File change counts">
       <Badge variant="secondary">+{file.additions}</Badge>
       <Badge variant="destructive">-{file.deletions}</Badge>
+      {onToggleViewed ? (
+        <button
+          aria-label={isViewed ? "Mark as unviewed" : "Mark as viewed"}
+          aria-pressed={isViewed}
+          className={cn(
+            "ml-1 inline-flex size-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors hover:text-foreground",
+            isViewed
+              ? "border-foreground/60 bg-foreground/10 text-foreground"
+              : "border-border/60 bg-transparent",
+          )}
+          onClick={() => onToggleViewed(file.path, !isViewed)}
+          type="button"
+        >
+          {isViewed ? <Check className="size-3.5" /> : null}
+        </button>
+      ) : null}
     </div>
   </header>
 );

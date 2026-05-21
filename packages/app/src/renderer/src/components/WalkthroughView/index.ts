@@ -1,12 +1,21 @@
 export { WalkthroughView } from "./WalkthroughView";
+export { FileDiffMinimap } from "./FileDiffMinimap";
+export { FileMasonryCard } from "./FileMasonryCard";
+export { FileOverlayPanel } from "./FileOverlayPanel";
+export { WalkthroughStep } from "./WalkthroughStep";
+export { FollowUpComposer } from "./FollowUpComposer";
 export {
-  buildWalkthroughSections,
-  buildWalkthroughLayout,
-  extractWalkthroughHeadings,
-  splitIntoChunks,
-  type AnchoredDiff,
-  type WalkthroughChunk,
-  type WalkthroughHeading,
-  type WalkthroughLayout,
-  type WalkthroughSection,
-} from "./walkthrough-parser";
+  parseInlineNodes,
+  parseInlineRef,
+  extractRelevantFiles,
+  type InlineNode,
+  type InlineRef,
+  type RefNode,
+  type TextNode,
+} from "./inline-refs";
+export {
+  parsePatchForMinimap,
+  overlapsRanges,
+  type MinimapData,
+  type MinimapSegment,
+} from "./minimap-utils";

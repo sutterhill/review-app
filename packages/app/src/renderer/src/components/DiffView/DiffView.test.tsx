@@ -12,6 +12,10 @@ vi.mock("@/components/ui/separator", () => ({
   Separator: () => <hr />,
 }));
 
+vi.mock("@/lib/utils", () => ({
+  cn: (...values: unknown[]) => values.filter(Boolean).join(" "),
+}));
+
 vi.mock("@pierre/diffs/react", () => ({
   PatchDiff: ({ patch }: { patch: string }) => <pre data-diffs-container>{patch}</pre>,
   WorkerPoolContextProvider: ({ children }: { children: ReactNode }) => children,

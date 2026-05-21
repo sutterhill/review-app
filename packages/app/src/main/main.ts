@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -9,6 +9,7 @@ import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./nar
 import { loadNarrative, saveNarrative } from "./narrative-storage";
 import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
 import { loadRepoRegistry, saveRepoRegistry, type RepoRegistryData } from "./repo-registry-storage";
+import { loadViewedFiles, saveViewedFiles } from "./viewed-files-storage";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -20,6 +21,54 @@ const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_OAUTH_CLIENT_ID_ENV = "GITHUB_OAUTH_CLIENT_ID";
 const GITHUB_OAUTH_SCOPE = "repo read:org";
 const GITHUB_TOKEN_FILE = "github-oauth-token";
+
+// Only load .env files in development to avoid picking up unrelated config in production
+if (!app.isPackaged) {
+  loadDotEnvFiles([".env.local", ".env"]);
+}
+
+function loadDotEnvFiles(filenames: string[]): void {
+  let dir = process.cwd();
+  const visited = new Set<string>();
+  for (let i = 0; i < 8 && !visited.has(dir); i += 1) {
+    visited.add(dir);
+    for (const filename of filenames) {
+      const candidate = path.join(dir, filename);
+      if (existsSync(candidate)) {
+        mergeDotEnv(candidate);
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+}
+
+function mergeDotEnv(filePath: string): void {
+  let content: string;
+  try {
+    content = readFileSync(filePath, "utf-8");
+  } catch {
+    return;
+  }
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
 
 interface AuthStatusResponse {
   authenticated: boolean;
@@ -150,6 +199,25 @@ ipcMain.handle("narrative:load", async (_event, prReference: unknown) => {
   }
 
   return loadNarrative(prReference);
+});
+
+ipcMain.handle("viewed-files:load", async (_event, prReference: unknown) => {
+  if (typeof prReference !== "string") {
+    throw new Error("Invalid viewed-files load request.");
+  }
+
+  return loadViewedFiles(prReference);
+});
+
+ipcMain.handle("viewed-files:save", async (_event, prReference: unknown, paths: unknown) => {
+  if (typeof prReference !== "string" || !Array.isArray(paths)) {
+    throw new Error("Invalid viewed-files save request.");
+  }
+
+  await saveViewedFiles(
+    prReference,
+    paths.filter((value): value is string => typeof value === "string"),
+  );
 });
 
 ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: unknown) => {

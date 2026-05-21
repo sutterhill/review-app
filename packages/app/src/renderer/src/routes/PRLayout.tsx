@@ -8,6 +8,7 @@ import { CubeLoader } from "../components/CubeLoader";
 import { selectPrData, selectPrError } from "../store/pr/pr-selectors";
 import { prActions } from "../store/pr/pr-slice";
 import type { AppDispatch } from "../store/store";
+import { viewedFilesActions } from "../store/viewed-files/viewed-files-slice";
 import { selectWalkthroughStatus } from "../store/walkthrough/walkthrough-selectors";
 import { walkthroughActions } from "../store/walkthrough/walkthrough-slice";
 import { PRContext } from "./pr-context";
@@ -27,8 +28,27 @@ export const PRLayout = (): React.JSX.Element => {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState<ReactNode | null>(null);
   const fileElements = useRef(new Map<string, HTMLElement>());
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const isWalkthroughGenerating =
     walkthroughStatus === "loading" || walkthroughStatus === "streaming";
+
+  useEffect(() => {
+    const element = stickyHeaderRef.current;
+    if (!element) return;
+    const setVar = (height: number): void => {
+      document.documentElement.style.setProperty("--pr-header-offset", `${height}px`);
+    };
+    setVar(element.offsetHeight);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setVar(entry.contentRect.height);
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--pr-header-offset");
+    };
+  }, [prData]);
 
   useEffect(() => {
     if (routeReference) {
@@ -43,6 +63,7 @@ export const PRLayout = (): React.JSX.Element => {
   useEffect(() => {
     if (prData) {
       dispatch(walkthroughActions.loadCachedWalkthrough());
+      dispatch(viewedFilesActions.loadViewedFiles({ prReference: prData.metadata.reference }));
     }
   }, [dispatch, prData]);
 
@@ -101,7 +122,11 @@ export const PRLayout = (): React.JSX.Element => {
           </aside>
         ) : null}
         <div className="min-w-0">
-          <div className="sticky top-0 z-10 bg-background">
+          <div
+            className="sticky top-0 z-30 bg-background"
+            data-pr-sticky-header=""
+            ref={stickyHeaderRef}
+          >
             <header className="flex flex-col gap-2 border-b px-4 py-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">

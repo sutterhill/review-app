@@ -42,6 +42,10 @@ declare global {
       save: (prReference: string, content: string) => Promise<void>;
       load: (prReference: string) => Promise<string | null>;
     };
+    reviewAppViewedFiles: {
+      load: (prReference: string) => Promise<string[]>;
+      save: (prReference: string, paths: string[]) => Promise<void>;
+    };
     reviewAppOrchestrator: {
       run: (
         request: OrchestratorAgentSessionRequest,
