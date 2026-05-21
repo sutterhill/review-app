@@ -7,6 +7,7 @@ import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walk
 import { FileOverlayPanel } from "./FileOverlayPanel";
 import { FollowUpComposer } from "./FollowUpComposer";
 import { MasonryGroups } from "./MasonryGroups";
+import { normalizeLineRanges } from "./normalize-line-ranges";
 import { DescriptionSkeleton, StepSkeleton } from "./StepSkeleton";
 import { WalkthroughStep } from "./WalkthroughStep";
 
@@ -67,8 +68,9 @@ export const WalkthroughView = ({
   const stepEmphasis = useMemo<Record<string, LineRange[]>>(() => {
     const map: Record<string, LineRange[]> = {};
     for (const file of activeStep?.step.relevantFiles ?? []) {
-      if (file.lineRanges?.length) {
-        map[file.path] = (map[file.path] ?? []).concat(file.lineRanges);
+      const ranges = normalizeLineRanges(file.lineRanges);
+      if (ranges.length > 0) {
+        map[file.path] = (map[file.path] ?? []).concat(ranges);
       }
     }
     return map;

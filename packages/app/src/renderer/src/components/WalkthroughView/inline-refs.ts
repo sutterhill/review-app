@@ -7,11 +7,13 @@ export interface InlineRef {
 }
 
 export interface TextNode {
+  id: string;
   text: string;
   type: "text";
 }
 
 export interface RefNode extends InlineRef {
+  id: string;
   type: "ref";
 }
 
@@ -56,17 +58,21 @@ const parseLineRange = (input: string): LineRange | null => {
 export const parseInlineNodes = (body: string): InlineNode[] => {
   const nodes: InlineNode[] = [];
   let lastIndex = 0;
+  let nodeCount = 0;
   for (const match of body.matchAll(REF_PATTERN)) {
     const matchIndex = match.index ?? 0;
     if (matchIndex > lastIndex) {
-      nodes.push({ text: body.slice(lastIndex, matchIndex), type: "text" });
+      nodeCount += 1;
+      nodes.push({ id: `t${nodeCount}`, text: body.slice(lastIndex, matchIndex), type: "text" });
     }
+    nodeCount += 1;
     const ref = parseInlineRef(match[1] ?? "");
-    nodes.push({ ...ref, type: "ref" });
+    nodes.push({ ...ref, id: `r${nodeCount}`, type: "ref" });
     lastIndex = matchIndex + match[0].length;
   }
   if (lastIndex < body.length) {
-    nodes.push({ text: body.slice(lastIndex), type: "text" });
+    nodeCount += 1;
+    nodes.push({ id: `t${nodeCount}`, text: body.slice(lastIndex), type: "text" });
   }
   return nodes;
 };

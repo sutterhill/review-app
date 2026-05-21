@@ -36,18 +36,32 @@ describe("parsePatchForMinimap", () => {
     expect(additionSegments).toHaveLength(1);
     expect(additionSegments[0]?.count).toBe(3);
   });
+
+  it("merges consecutive deletions even though new-line cursor does not advance", () => {
+    const patch = `@@ -1,3 +1,1 @@\n-a\n-b\n-c\n+kept`;
+    const data = parsePatchForMinimap(patch);
+    const deletionSegments = data.segments.filter((segment) => segment.kind === "deletion");
+    expect(deletionSegments).toHaveLength(1);
+    expect(deletionSegments[0]?.count).toBe(3);
+  });
 });
 
 describe("overlapsRanges", () => {
   it("returns true when segment intersects any range", () => {
-    expect(overlapsRanges({ count: 3, kind: "addition", startLine: 5 }, [[6, 10]])).toBe(true);
+    expect(
+      overlapsRanges({ count: 3, id: "seg-1", kind: "addition", startLine: 5 }, [[6, 10]]),
+    ).toBe(true);
   });
 
   it("returns false when ranges are disjoint", () => {
-    expect(overlapsRanges({ count: 2, kind: "addition", startLine: 1 }, [[10, 20]])).toBe(false);
+    expect(
+      overlapsRanges({ count: 2, id: "seg-2", kind: "addition", startLine: 1 }, [[10, 20]]),
+    ).toBe(false);
   });
 
   it("handles single-line ranges", () => {
-    expect(overlapsRanges({ count: 1, kind: "deletion", startLine: 4 }, [[4, 4]])).toBe(true);
+    expect(
+      overlapsRanges({ count: 1, id: "seg-3", kind: "deletion", startLine: 4 }, [[4, 4]]),
+    ).toBe(true);
   });
 });

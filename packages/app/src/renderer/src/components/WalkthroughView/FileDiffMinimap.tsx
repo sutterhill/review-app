@@ -43,7 +43,7 @@ export const FileDiffMinimap = ({
       {data.segments.map((segment) => (
         <MinimapSegmentBar
           emphasized={hasEmphasis && overlapsRanges(segment, emphasizedRanges ?? [])}
-          key={`${segment.kind}-${segment.startLine}-${segment.count}`}
+          key={segment.id}
           segment={segment}
           totalLines={data.newLineCount}
           totalSegments={data.segments.length}

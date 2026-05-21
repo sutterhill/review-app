@@ -8,6 +8,7 @@ import type {
   WalkthroughStep as WalkthroughStepData,
 } from "../../store/walkthrough/walkthrough-types";
 import { parseInlineNodes, type InlineNode } from "./inline-refs";
+import { normalizeLineRanges } from "./normalize-line-ranges";
 
 interface WalkthroughStepProps {
   index: number;
@@ -64,21 +65,19 @@ const ParagraphRenderer = ({
   <p>
     {nodes.map((node) => {
       if (node.type === "text") {
-        return <TextSpan key={`text-${hashString(node.text)}`} text={node.text} />;
+        return <TextSpan key={node.id} text={node.text} />;
       }
+      const ranges = normalizeLineRanges(node.lineRanges);
       const label = node.symbol
         ? `${node.path}:${node.symbol}`
-        : node.lineRanges.length > 0
-          ? `${node.path}${formatLineRanges(node.lineRanges)}`
+        : ranges.length > 0
+          ? `${node.path}${formatLineRanges(ranges)}`
           : node.path;
-      const refKey = `ref-${node.path}-${node.symbol ?? ""}-${node.lineRanges
-        .map((range) => range.join("-"))
-        .join(",")}`;
       return (
         <button
           className="mx-0.5 cursor-pointer rounded-md border bg-muted/50 px-1 py-0.5 font-mono text-[0.85em] text-primary underline-offset-2 hover:bg-muted hover:underline"
-          key={refKey}
-          onClick={() => onRefClick(node.path, node.lineRanges)}
+          key={node.id}
+          onClick={() => onRefClick(node.path, ranges)}
           type="button"
         >
           {label}
@@ -93,15 +92,15 @@ const TextSpan = ({ text }: { text: string }): React.JSX.Element => {
   return (
     <>
       {parts.map((part) =>
-        part.code ? (
+        part.code !== null ? (
           <code
             className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground"
-            key={`code-${hashString(part.code)}`}
+            key={part.id}
           >
             {part.code}
           </code>
         ) : (
-          <span key={`span-${hashString(part.text)}`}>{part.text}</span>
+          <span key={part.id}>{part.text}</span>
         ),
       )}
     </>
@@ -114,22 +113,49 @@ const RelevantFileChips = ({
 }: {
   files: WalkthroughFileRef[];
   onRefClick: (path: string, lineRanges: LineRange[]) => void;
-}): React.JSX.Element => (
-  <ul aria-label="Relevant files for this step" className="flex flex-wrap gap-1.5">
-    {files.map((file) => (
-      <li key={`${file.path}-${(file.lineRanges ?? []).join(",")}`}>
-        <button
-          className="rounded-full border bg-card px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground hover:border-primary/40 hover:text-foreground"
-          onClick={() => onRefClick(file.path, file.lineRanges ?? [])}
-          type="button"
-        >
-          {file.path}
-          {file.lineRanges?.length ? formatLineRanges(file.lineRanges) : null}
-        </button>
-      </li>
-    ))}
-  </ul>
-);
+}): React.JSX.Element => {
+  const items = useMemo(() => buildRelevantItems(files), [files]);
+  return (
+    <ul aria-label="Relevant files for this step" className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <li key={item.id}>
+          <button
+            className="rounded-full border bg-card px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            onClick={() => onRefClick(item.path, item.ranges)}
+            type="button"
+          >
+            {item.path}
+            {item.ranges.length > 0 ? formatLineRanges(item.ranges) : null}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+interface RelevantItem {
+  id: string;
+  path: string;
+  ranges: LineRange[];
+}
+
+const buildRelevantItems = (files: WalkthroughFileRef[]): RelevantItem[] => {
+  const used = new Set<string>();
+  const items: RelevantItem[] = [];
+  for (const file of files) {
+    const ranges = normalizeLineRanges(file.lineRanges);
+    const base = `${file.path}#${ranges.map((range) => range.join("-")).join(",")}`;
+    let id = base;
+    let suffix = 1;
+    while (used.has(id)) {
+      suffix += 1;
+      id = `${base}~${suffix}`;
+    }
+    used.add(id);
+    items.push({ id, path: file.path, ranges });
+  }
+  return items;
+};
 
 const splitParagraphs = (body: string): ParagraphData[] => {
   const blocks = body
@@ -142,17 +168,31 @@ const splitParagraphs = (body: string): ParagraphData[] => {
   return blocks.map((block) => ({ key: hashString(block), nodes: parseInlineNodes(block) }));
 };
 
-const splitInlineCode = (text: string): Array<{ code: null | string; text: string }> => {
-  const parts: Array<{ code: null | string; text: string }> = [];
+interface InlineCodePart {
+  code: null | string;
+  id: string;
+  text: string;
+}
+
+const splitInlineCode = (text: string): InlineCodePart[] => {
+  const parts: InlineCodePart[] = [];
   const pattern = /`([^`]+)`/gu;
   let lastIndex = 0;
+  let counter = 0;
   for (const match of text.matchAll(pattern)) {
     const matchIndex = match.index ?? 0;
-    if (matchIndex > lastIndex) parts.push({ code: null, text: text.slice(lastIndex, matchIndex) });
-    parts.push({ code: match[1] ?? "", text: "" });
+    if (matchIndex > lastIndex) {
+      counter += 1;
+      parts.push({ code: null, id: `t${counter}`, text: text.slice(lastIndex, matchIndex) });
+    }
+    counter += 1;
+    parts.push({ code: match[1] ?? "", id: `c${counter}`, text: "" });
     lastIndex = matchIndex + match[0].length;
   }
-  if (lastIndex < text.length) parts.push({ code: null, text: text.slice(lastIndex) });
+  if (lastIndex < text.length) {
+    counter += 1;
+    parts.push({ code: null, id: `t${counter}`, text: text.slice(lastIndex) });
+  }
   return parts;
 };
 

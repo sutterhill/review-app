@@ -1,5 +1,6 @@
 export interface MinimapSegment {
   count: number;
+  id: string;
   kind: "addition" | "context" | "deletion";
   startLine: number;
 }
@@ -25,6 +26,7 @@ export const parsePatchForMinimap = (patch: string): MinimapData => {
   let deletions = 0;
   let pending: MinimapSegment | null = null;
   let inHunk = false;
+  let nextSegmentId = 0;
 
   const flush = (): void => {
     if (pending) {
@@ -34,12 +36,15 @@ export const parsePatchForMinimap = (patch: string): MinimapData => {
   };
 
   const emit = (kind: MinimapSegment["kind"], line: number): void => {
-    if (pending && pending.kind === kind && pending.startLine + pending.count === line) {
-      pending.count += 1;
-    } else {
-      flush();
-      pending = { count: 1, kind, startLine: line };
+    if (pending && pending.kind === kind) {
+      if (kind === "deletion" || pending.startLine + pending.count === line) {
+        pending.count += 1;
+        return;
+      }
     }
+    flush();
+    nextSegmentId += 1;
+    pending = { count: 1, id: `seg-${nextSegmentId}`, kind, startLine: line };
   };
 
   for (const line of lines) {

@@ -45,7 +45,15 @@ describe("parseInlineRef", () => {
 
 describe("parseInlineNodes", () => {
   it("returns a single text node when no refs are present", () => {
-    expect(parseInlineNodes("hello world")).toEqual([{ text: "hello world", type: "text" }]);
+    expect(parseInlineNodes("hello world")).toEqual([
+      { id: "t1", text: "hello world", type: "text" },
+    ]);
+  });
+
+  it("assigns unique ids to every parsed node", () => {
+    const nodes = parseInlineNodes("a {{ref:x.ts#L1-2}} b {{ref:x.ts#L1-2}} c");
+    const ids = nodes.map((node) => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("splits prose around a ref", () => {
