@@ -36,7 +36,7 @@ export const WalkthroughStep = ({
       <h3 className="text-base font-semibold leading-tight text-foreground" id={headingId}>
         {step.heading}
       </h3>
-      <div className="flex flex-col gap-4 text-[1.02rem] font-light leading-snug text-foreground">
+      <div className="flex flex-col gap-4 text-[1.02rem] font-light leading-[1.55] text-foreground">
         {paragraphs.map((paragraph) => (
           <ParagraphRenderer key={paragraph.key} nodes={paragraph.nodes} onRefClick={onRefClick} />
         ))}

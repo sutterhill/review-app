@@ -171,7 +171,7 @@ export const WalkthroughView = ({
           </div>
         </div>
         <div className="px-4 py-6">
-          <div className="sticky top-[7rem] max-h-[calc(100vh-7rem)] overflow-y-auto pr-2">
+          <div className="sticky top-[8.5rem] max-h-[calc(100vh-9.5rem)] overflow-y-auto pr-2">
             <MasonryGroups
               activeFiles={activeFiles}
               emphasizedRanges={stepEmphasis}
