@@ -1,12 +1,25 @@
-import { PatchDiff } from "@pierre/diffs/react";
+import { PatchDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
 import type { PullRequestData } from "../../store/pr/pr-types";
-import { DIFF_OPTIONS, statusBadgeVariant, statusLabel, usePreloadedPatches } from "../diff-utils";
+import { DIFF_OPTIONS, statusBadgeVariant, statusLabel } from "../diff-utils";
 import { parseUnifiedDiff, type ParsedDiffFile } from "./diff-parser";
+
+const DIFF_WORKER_POOL_OPTIONS = {
+  poolSize: 2,
+  totalASTLRUCacheSize: 200,
+  workerFactory: (): Worker =>
+    new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), { type: "module" }),
+};
+
+const DIFF_HIGHLIGHTER_OPTIONS = {
+  maxLineDiffLength: 1000,
+  theme: DIFF_OPTIONS.theme,
+  tokenizeMaxLineLength: 1000,
+};
 
 interface DiffViewProps {
   onFileElement(path: string, element: HTMLElement | null): void;
@@ -18,7 +31,6 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
     () => parseUnifiedDiff(pullRequest.diff, pullRequest.files),
     [pullRequest.diff, pullRequest.files],
   );
-  const preloadedHtml = usePreloadedPatches(files);
 
   if (files.length === 0) {
     return (
@@ -29,31 +41,31 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
   }
 
   return (
-    <div className="flex flex-col gap-4" aria-label="Pull request diff">
-      {files.map((file) => (
-        <section
-          className="scroll-mt-4 overflow-hidden border bg-background"
-          data-change-status={file.status}
-          key={file.path}
-          ref={(element) => onFileElement(file.path, element)}
-        >
-          <DiffFileHeader file={file} />
-          <Separator />
-          {file.patch ? (
-            <PatchDiff
-              disableWorkerPool={true}
-              options={DIFF_OPTIONS}
-              patch={file.patch}
-              prerenderedHTML={preloadedHtml[file.path]}
-            />
-          ) : (
-            <p className="p-4 text-sm text-muted-foreground">
-              No textual diff is available for this file.
-            </p>
-          )}
-        </section>
-      ))}
-    </div>
+    <WorkerPoolContextProvider
+      highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
+      poolOptions={DIFF_WORKER_POOL_OPTIONS}
+    >
+      <div className="flex flex-col gap-4" aria-label="Pull request diff">
+        {files.map((file) => (
+          <section
+            className="scroll-mt-4 overflow-hidden border bg-background"
+            data-change-status={file.status}
+            key={file.path}
+            ref={(element) => onFileElement(file.path, element)}
+          >
+            <DiffFileHeader file={file} />
+            <Separator />
+            {file.patch ? (
+              <PatchDiff options={DIFF_OPTIONS} patch={file.patch} />
+            ) : (
+              <p className="p-4 text-sm text-muted-foreground">
+                No textual diff is available for this file.
+              </p>
+            )}
+          </section>
+        ))}
+      </div>
+    </WorkerPoolContextProvider>
   );
 };
 
