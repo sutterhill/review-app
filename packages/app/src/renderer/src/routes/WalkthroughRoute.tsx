@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 
@@ -19,18 +19,13 @@ const generateFollowUpId = (): string =>
   `follow-up-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const WalkthroughRoute = (): React.JSX.Element => {
-  const { prData, setSidebar } = usePRContext();
+  const { prData } = usePRContext();
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const messages = useSelector(selectWalkthroughMessages);
   const status = useSelector(selectWalkthroughStatus);
   const error = useSelector(selectWalkthroughError);
   const isStreaming = status === "loading" || status === "streaming";
-
-  useEffect(() => {
-    setSidebar(null);
-    return () => setSidebar(null);
-  }, [setSidebar]);
 
   const handleRegenerate = useCallback(() => {
     dispatch(walkthroughActions.generateWalkthrough());

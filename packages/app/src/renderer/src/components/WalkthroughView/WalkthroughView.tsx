@@ -2,6 +2,7 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { GitPullRequest } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { usePRContext } from "../../routes/pr-context";
 import type { PullRequestData } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS } from "../diff-utils";
@@ -11,6 +12,7 @@ import { MasonryGroups } from "./MasonryGroups";
 import { normalizeLineRanges } from "./normalize-line-ranges";
 import { DescriptionSkeleton, StepSkeleton } from "./StepSkeleton";
 import { WalkthroughStep } from "./WalkthroughStep";
+import { WalkthroughTOC, type WalkthroughTOCEntry } from "./WalkthroughTOC";
 
 interface WalkthroughViewProps {
   isStreaming: boolean;
@@ -92,6 +94,23 @@ export const WalkthroughView = ({
     else stepRefs.current.delete(key);
   }, []);
 
+  const handleTOCSelect = useCallback((key: string) => {
+    const element = stepRefs.current.get(key);
+    element?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const { setSidebar } = usePRContext();
+  const tocEntries = useMemo<WalkthroughTOCEntry[]>(
+    () => allSteps.map(({ key, step }) => ({ heading: step.heading, key })),
+    [allSteps],
+  );
+  useEffect(() => {
+    setSidebar(
+      <WalkthroughTOC activeKey={activeStepKey} entries={tocEntries} onSelect={handleTOCSelect} />,
+    );
+    return () => setSidebar(null);
+  }, [activeStepKey, handleTOCSelect, setSidebar, tocEntries]);
+
   return (
     <WorkerPoolContextProvider
       highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
@@ -118,7 +137,12 @@ export const WalkthroughView = ({
               </>
             ) : null}
             {allSteps.map(({ key, message, step }, index) => (
-              <div data-step-key={key} key={key} ref={(element) => registerStep(key, element)}>
+              <div
+                className="scroll-mt-32"
+                data-step-key={key}
+                key={key}
+                ref={(element) => registerStep(key, element)}
+              >
                 {message.kind === "follow-up" &&
                 index > 0 &&
                 allSteps[index - 1]?.message.id !== message.id ? (
