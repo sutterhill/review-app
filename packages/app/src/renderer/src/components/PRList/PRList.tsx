@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
 import {
@@ -59,31 +60,24 @@ export const PRList = (): React.JSX.Element => {
     }
   };
 
-  const renderModeButton = (mode: PrListMode, label: string) => (
-    <button
-      aria-pressed={prListMode === mode}
-      className={cn(
-        "px-3 py-1 text-sm font-medium transition-colors",
-        prListMode === mode
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-      onClick={() => dispatch(prActions.setPrListMode(mode))}
-      type="button"
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="mx-auto w-full max-w-7xl rounded-lg bg-muted/30 p-4">
       <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold">Reviews</h1>
-          <div className="flex rounded-md border">
-            {renderModeButton("needs-review", "Needs review")}
-            {renderModeButton("mine", "Mine")}
-          </div>
+          <ToggleGroup
+            value={[prListMode]}
+            onValueChange={(value) => {
+              const nextMode = value[0];
+
+              if (nextMode) dispatch(prActions.setPrListMode(nextMode as PrListMode));
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <ToggleGroupItem value="needs-review">Needs review</ToggleGroupItem>
+            <ToggleGroupItem value="mine">Mine</ToggleGroupItem>
+          </ToggleGroup>
         </div>
         <Button
           disabled={isLoading}
