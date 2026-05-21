@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-type NarrativeAgentEvent =
+type WalkthroughAgentEvent =
   | { content: string; type: "chunk" }
   | { type: "done" }
   | { error: string; type: "error" };
@@ -33,7 +33,7 @@ interface GitHubDevicePollResult {
 type RepoRegistryData = Record<string, { fullName: string; localPath: string }>;
 type RepoWorktreeEntry = { branch: string; path: string };
 
-let narrativeRequestCount = 0;
+let walkthroughRequestCount = 0;
 let orchestratorRequestCount = 0;
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -88,13 +88,13 @@ contextBridge.exposeInMainWorld("reviewAppRepos", {
   },
 });
 
-contextBridge.exposeInMainWorld("reviewAppNarrative", {
-  generate: (request: unknown, onEvent: (event: NarrativeAgentEvent) => void) => {
-    const requestId = `narrative-${Date.now()}-${narrativeRequestCount}`;
-    narrativeRequestCount += 1;
+contextBridge.exposeInMainWorld("reviewAppWalkthrough", {
+  generate: (request: unknown, onEvent: (event: WalkthroughAgentEvent) => void) => {
+    const requestId = `narrative-${Date.now()}-${walkthroughRequestCount}`;
+    walkthroughRequestCount += 1;
     const channel = `narrative:stream:${requestId}`;
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown): void => {
-      if (isNarrativeAgentEvent(payload)) {
+      if (isWalkthroughAgentEvent(payload)) {
         onEvent(payload);
       }
     };
@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld("reviewAppNarrative", {
     ipcRenderer.on(channel, listener);
     void ipcRenderer.invoke("narrative:generate", requestId, request).catch((error: unknown) => {
       onEvent({
-        error: error instanceof Error ? error.message : "Narrative generation failed.",
+        error: error instanceof Error ? error.message : "Walkthrough generation failed.",
         type: "error",
       });
     });
@@ -151,7 +151,7 @@ contextBridge.exposeInMainWorld("reviewAppOrchestrator", {
   },
 });
 
-const isNarrativeAgentEvent = (payload: unknown): payload is NarrativeAgentEvent => {
+const isWalkthroughAgentEvent = (payload: unknown): payload is WalkthroughAgentEvent => {
   if (!payload || typeof payload !== "object") {
     return false;
   }

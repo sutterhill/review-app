@@ -10,25 +10,25 @@ import { cn } from "@/lib/utils";
 import type { PullRequestData } from "../../store/pr/pr-types";
 import { DIFF_OPTIONS, statusBadgeVariant, statusLabel, usePreloadedPatches } from "../diff-utils";
 import { parseUnifiedDiff, type ParsedDiffFile } from "../DiffView";
-import { buildNarrativeSections, shouldCollapseDiffSection } from "./narrative-parser";
+import { buildWalkthroughSections, shouldCollapseDiffSection } from "./walkthrough-parser";
 
-interface NarrativeViewProps {
-  narrative: string;
+interface WalkthroughViewProps {
+  walkthrough: string;
   onFileElement?: (path: string, element: HTMLElement | null) => void;
   pullRequest: PullRequestData;
 }
 
-export const NarrativeView = ({
-  narrative,
+export const WalkthroughView = ({
+  walkthrough,
   onFileElement,
   pullRequest,
-}: NarrativeViewProps): React.JSX.Element => {
+}: WalkthroughViewProps): React.JSX.Element => {
   const files = useMemo(
     () => parseUnifiedDiff(pullRequest.diff, pullRequest.files),
     [pullRequest.diff, pullRequest.files],
   );
   const fileByPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files]);
-  const sections = useMemo(() => buildNarrativeSections(narrative, files), [files, narrative]);
+  const sections = useMemo(() => buildWalkthroughSections(walkthrough, files), [files, walkthrough]);
   const preloadedHtml = usePreloadedPatches(files);
   const [expandedByPath, setExpandedByPath] = useState<Record<string, boolean>>({});
 
@@ -47,20 +47,20 @@ export const NarrativeView = ({
   if (sections.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Generate a narrative to see the guided walkthrough.
+        Generate a walkthrough to see the guided walkthrough.
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5" aria-label="Narrative walkthrough">
+    <div className="flex flex-col gap-5" aria-label="Pull request walkthrough">
       {sections.map((section) => (
         <Fragment key={section.id}>
-          <NarrativeMarkdown markdown={section.markdown} subtle={section.isFallback} />
+          <WalkthroughMarkdown markdown={section.markdown} subtle={section.isFallback} />
           {section.filePaths.map((path) => {
             const file = fileByPath.get(path);
             return file ? (
-              <NarrativeDiffSection
+              <WalkthroughDiffSection
                 expanded={expandedByPath[path] ?? !shouldCollapseDiffSection(file)}
                 file={file}
                 isFormattingOnly={shouldCollapseDiffSection(file)}
@@ -77,7 +77,7 @@ export const NarrativeView = ({
   );
 };
 
-interface NarrativeDiffSectionProps {
+interface WalkthroughDiffSectionProps {
   expanded: boolean;
   file: ParsedDiffFile;
   isFormattingOnly: boolean;
@@ -86,14 +86,14 @@ interface NarrativeDiffSectionProps {
   preloadedHtml?: string;
 }
 
-const NarrativeDiffSection = ({
+const WalkthroughDiffSection = ({
   expanded,
   file,
   isFormattingOnly,
   onFileElement,
   onToggle,
   preloadedHtml,
-}: NarrativeDiffSectionProps): React.JSX.Element => (
+}: WalkthroughDiffSectionProps): React.JSX.Element => (
   <section
     className={cn(
       "scroll-mt-4 overflow-hidden rounded-lg border bg-background",
@@ -155,7 +155,7 @@ const NarrativeDiffSection = ({
   </section>
 );
 
-const NarrativeMarkdown = ({
+const WalkthroughMarkdown = ({
   markdown,
   subtle,
 }: {
