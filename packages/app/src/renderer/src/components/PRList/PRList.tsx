@@ -11,12 +11,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import {
+  selectMyPullRequests,
+  selectMyPullRequestsError,
+  selectMyPullRequestsStatus,
   selectOpenPullRequests,
   selectOpenPullRequestsError,
   selectOpenPullRequestsStatus,
+  selectPrListMode,
 } from "../../store/pr/pr-selectors";
 import { prActions } from "../../store/pr/pr-slice";
-import type { PullRequestSummary } from "../../store/pr/pr-types";
+import type { PrListMode, PullRequestSummary } from "../../store/pr/pr-types";
 import { selectRepoEntries } from "../../store/repos/repos-selectors";
 import { normalizeRepoKey, reposActions } from "../../store/repos/repos-slice";
 import type { RepoRegistryEntry, RepoWorktreeEntry } from "../../store/repos/repos-types";
@@ -27,24 +31,63 @@ export const PRList = (): React.JSX.Element => {
   const pullRequests = useSelector(selectOpenPullRequests);
   const status = useSelector(selectOpenPullRequestsStatus);
   const error = useSelector(selectOpenPullRequestsError);
+  const prListMode = useSelector(selectPrListMode);
+  const myPullRequests = useSelector(selectMyPullRequests);
+  const myPullRequestsStatus = useSelector(selectMyPullRequestsStatus);
+  const myPullRequestsError = useSelector(selectMyPullRequestsError);
   const repoEntries = useSelector(selectRepoEntries);
-  const repoGroups = groupPullRequestsByRepository(pullRequests);
+  const activePullRequests = prListMode === "mine" ? myPullRequests : pullRequests;
+  const activeStatus = prListMode === "mine" ? myPullRequestsStatus : status;
+  const activeError = prListMode === "mine" ? myPullRequestsError : error;
+  const repoGroups = groupPullRequestsByRepository(activePullRequests);
 
   useEffect(() => {
-    dispatch(prActions.fetchOpenPullRequests());
-  }, [dispatch]);
+    if (prListMode === "mine") {
+      dispatch(prActions.fetchMyPullRequests());
+    } else {
+      dispatch(prActions.fetchOpenPullRequests());
+    }
+  }, [dispatch, prListMode]);
 
-  const isLoading = status === "loading";
+  const isLoading = activeStatus === "loading";
+
+  const handleRefresh = () => {
+    if (prListMode === "mine") {
+      dispatch(prActions.fetchMyPullRequests());
+    } else {
+      dispatch(prActions.fetchOpenPullRequests());
+    }
+  };
+
+  const renderModeButton = (mode: PrListMode, label: string) => (
+    <button
+      aria-pressed={prListMode === mode}
+      className={cn(
+        "px-3 py-1 text-sm font-medium transition-colors",
+        prListMode === mode
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+      onClick={() => dispatch(prActions.setPrListMode(mode))}
+      type="button"
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl rounded-lg bg-muted/30 p-4">
       <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+        <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold">Reviews</h1>
+          <div className="flex rounded-md border">
+            {renderModeButton("needs-review", "Needs review")}
+            {renderModeButton("mine", "Mine")}
+          </div>
         </div>
         <Button
           disabled={isLoading}
-          onClick={() => dispatch(prActions.fetchOpenPullRequests())}
+          onClick={handleRefresh}
           size="sm"
           type="button"
           variant="outline"
@@ -53,15 +96,20 @@ export const PRList = (): React.JSX.Element => {
         </Button>
       </header>
       <div className="flex min-h-0 flex-col gap-4 pt-4">
-        {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
-        {isLoading && pullRequests.length === 0 ? <PRListSkeleton /> : null}
-        {!isLoading && pullRequests.length === 0 && !error ? (
+        {activeError ? <p className="text-sm text-destructive">{activeError.message}</p> : null}
+        {isLoading && activePullRequests.length === 0 ? <PRListSkeleton /> : null}
+        {!isLoading && activePullRequests.length === 0 && !activeError ? (
           <p className="text-sm text-muted-foreground">
-            No open pull requests are requesting your review.
+            {prListMode === "mine"
+              ? "You have no open pull requests."
+              : "No open pull requests are requesting your review."}
           </p>
         ) : null}
         {repoGroups.length > 0 ? (
-          <ScrollArea className="h-[calc(100vh-14rem)] pr-3" aria-label="Open review requests">
+          <ScrollArea
+            className="h-[calc(100vh-14rem)] pr-3"
+            aria-label={prListMode === "mine" ? "My open pull requests" : "Open review requests"}
+          >
             <div className="flex flex-col">
               {repoGroups.map((repoGroup) => {
                 const repoEntry = repoEntries[normalizeRepoKey(repoGroup.repositoryName)];
@@ -77,6 +125,7 @@ export const PRList = (): React.JSX.Element => {
                     }
                     repoEntry={repoEntry}
                     repoGroup={repoGroup}
+                    prListMode={prListMode}
                   />
                 );
               })}
@@ -96,6 +145,7 @@ interface PullRequestRepoGroup {
 interface PRRepoGroupProps {
   onClone: () => void;
   onLocate: () => void;
+  prListMode: PrListMode;
   repoEntry?: RepoRegistryEntry;
   repoGroup: PullRequestRepoGroup;
 }
@@ -103,6 +153,7 @@ interface PRRepoGroupProps {
 const PRRepoGroup = ({
   onClone,
   onLocate,
+  prListMode,
   repoEntry,
   repoGroup,
 }: PRRepoGroupProps): React.JSX.Element => {
@@ -114,7 +165,10 @@ const PRRepoGroup = ({
         <div className="min-w-0">
           <h2 className="truncate font-mono text-sm font-semibold">{repoGroup.repositoryName}</h2>
           <div className="mt-1 flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
-            <span>{formatPullRequestCount(repoGroup.pullRequests.length)} requesting review</span>
+            <span>
+              {formatPullRequestCount(repoGroup.pullRequests.length)}
+              {prListMode === "mine" ? " open" : " requesting review"}
+            </span>
             {repoEntry?.localPath ? (
               <span className="truncate font-mono">{repoEntry.localPath}</span>
             ) : null}

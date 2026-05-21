@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   GitHubApiError,
+  fetchMyPullRequestsFromGitHub,
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
@@ -10,7 +11,12 @@ import {
 import { selectPrReference } from "../pr-selectors";
 import { prActions } from "../pr-slice";
 import type { PullRequestComment, PullRequestData, PullRequestSummary } from "../pr-types";
-import { fetchCommentsSaga, fetchOpenPullRequestsSaga, fetchPrSaga } from "./pr-saga";
+import {
+  fetchCommentsSaga,
+  fetchMyPullRequestsSaga,
+  fetchOpenPullRequestsSaga,
+  fetchPrSaga,
+} from "./pr-saga";
 
 const pullRequest: PullRequestData = {
   diff: "diff --git a/src/app.ts b/src/app.ts",
@@ -68,6 +74,16 @@ describe("prSaga", () => {
     expect(generator.next().value).toEqual(call(fetchOpenPullRequestsFromGitHub));
     expect(generator.next([summary]).value).toEqual(
       put(prActions.fetchOpenPullRequestsSucceeded([summary])),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("fetches my pull request summaries", () => {
+    const generator = fetchMyPullRequestsSaga();
+
+    expect(generator.next().value).toEqual(call(fetchMyPullRequestsFromGitHub));
+    expect(generator.next([summary]).value).toEqual(
+      put(prActions.fetchMyPullRequestsSucceeded([summary])),
     );
     expect(generator.next().done).toBe(true);
   });

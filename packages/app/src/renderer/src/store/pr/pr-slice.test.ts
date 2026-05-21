@@ -9,6 +9,9 @@ describe("prReducer", () => {
     expect(state.status).toBe("idle");
     expect(state.comments).toEqual([]);
     expect(state.commentsStatus).toBe("idle");
+    expect(state.myPullRequests).toEqual([]);
+    expect(state.myPullRequestsStatus).toBe("idle");
+    expect(state.prListMode).toBe("needs-review");
   });
 
   it("tracks fetch requests without retaining stale data", () => {
@@ -46,5 +49,42 @@ describe("prReducer", () => {
 
     expect(state.openPullRequestsStatus).toBe("loading");
     expect(state.openPullRequestsError).toBeNull();
+  });
+
+  it("tracks my pull request loading separately", () => {
+    const state = prReducer(undefined, prActions.fetchMyPullRequests());
+
+    expect(state.myPullRequestsStatus).toBe("loading");
+    expect(state.myPullRequestsError).toBeNull();
+  });
+
+  it("stores my pull request results", () => {
+    const state = prReducer(
+      undefined,
+      prActions.fetchMyPullRequestsSucceeded([
+        {
+          author: { avatarUrl: null, login: "octocat", url: "" },
+          headRefName: "feature-branch",
+          htmlUrl: "https://github.com/acme/repo/pull/1",
+          number: 1,
+          owner: "acme",
+          reference: "acme/repo#1",
+          repo: "repo",
+          repositoryName: "acme/repo",
+          title: "Add app value",
+          updatedAt: "2026-05-20T00:00:00.000Z",
+        },
+      ]),
+    );
+
+    expect(state.myPullRequests).toHaveLength(1);
+    expect(state.myPullRequestsError).toBeNull();
+    expect(state.myPullRequestsStatus).toBe("succeeded");
+  });
+
+  it("stores the selected PR list mode", () => {
+    const state = prReducer(undefined, prActions.setPrListMode("mine"));
+
+    expect(state.prListMode).toBe("mine");
   });
 });

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getGitHubToken } from "./auth";
 import {
   GitHubApiError,
+  fetchMyPullRequestsFromGitHub,
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
@@ -128,6 +129,44 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         repositoryName: "acme/repo",
         title: "Open change",
         updatedAt: "2026-05-21T00:00:00.000Z",
+      },
+    ]);
+  });
+});
+
+describe("fetchMyPullRequestsFromGitHub", () => {
+  it("fetches open pull request summaries authored by the authenticated user", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/7")) {
+        return jsonResponse({ head: { ref: "my-feature" } });
+      }
+
+      expect(url).toContain("author%3Aoctocat");
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/7",
+            number: 7,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "My change",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+        ],
+      });
+    });
+
+    await expect(fetchMyPullRequestsFromGitHub()).resolves.toMatchObject([
+      {
+        headRefName: "my-feature",
+        number: 7,
+        reference: "acme/repo#7",
+        title: "My change",
       },
     ]);
   });

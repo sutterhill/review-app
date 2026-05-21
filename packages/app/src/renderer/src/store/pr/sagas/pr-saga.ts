@@ -3,6 +3,7 @@ import { all, call, put, select, takeLatest } from "redux-saga/effects";
 
 import {
   GitHubApiError,
+  fetchMyPullRequestsFromGitHub,
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
@@ -34,6 +35,15 @@ export function* fetchOpenPullRequestsSaga(): Generator {
   }
 }
 
+export function* fetchMyPullRequestsSaga(): Generator {
+  try {
+    const pullRequests = (yield call(fetchMyPullRequestsFromGitHub)) as PullRequestSummary[];
+    yield put(prActions.fetchMyPullRequestsSucceeded(pullRequests));
+  } catch (error) {
+    yield put(prActions.fetchMyPullRequestsFailed(toPrFetchError(error)));
+  }
+}
+
 export function* fetchCommentsSaga(): Generator {
   try {
     const reference = (yield select(selectPrReference)) as string;
@@ -47,6 +57,7 @@ export function* fetchCommentsSaga(): Generator {
 export function* prSaga(): Generator {
   yield all([
     takeLatest(prActions.fetchComments.type, fetchCommentsSaga),
+    takeLatest(prActions.fetchMyPullRequests.type, fetchMyPullRequestsSaga),
     takeLatest(prActions.fetchOpenPullRequests.type, fetchOpenPullRequestsSaga),
     takeLatest(prActions.fetchPr.type, fetchPrSaga),
     takeLatest(prActions.fetchPrSucceeded.type, fetchCommentsSaga),

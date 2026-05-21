@@ -1,6 +1,7 @@
 import type { RootState } from "../store";
 import type {
   PrFetchError,
+  PrListMode,
   PrRequestStatus,
   PullRequestComment,
   PullRequestData,
@@ -22,3 +23,10 @@ export const selectOpenPullRequestsError = (state: RootState): PrFetchError | nu
   state.pr.openPullRequestsError;
 export const selectOpenPullRequestsStatus = (state: RootState): PrRequestStatus =>
   state.pr.openPullRequestsStatus;
+export const selectMyPullRequests = (state: RootState): PullRequestSummary[] =>
+  state.pr.myPullRequests;
+export const selectMyPullRequestsError = (state: RootState): PrFetchError | null =>
+  state.pr.myPullRequestsError;
+export const selectMyPullRequestsStatus = (state: RootState): PrRequestStatus =>
+  state.pr.myPullRequestsStatus;
+export const selectPrListMode = (state: RootState): PrListMode => state.pr.prListMode;
