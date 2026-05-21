@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 
 import { cn } from "@/lib/utils";
 
 import { CubeLoader } from "../components/CubeLoader";
-import { ChangedFileTree } from "../components/FileTree";
 import { selectPrData, selectPrError } from "../store/pr/pr-selectors";
 import { prActions } from "../store/pr/pr-slice";
 import type { AppDispatch } from "../store/store";
@@ -26,8 +25,10 @@ export const PRLayout = (): React.JSX.Element => {
   const walkthroughStatus = useSelector(selectWalkthroughStatus);
   const routeReference = owner && repo && number ? `${owner}/${repo}#${number}` : "";
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [sidebar, setSidebar] = useState<ReactNode | null>(null);
   const fileElements = useRef(new Map<string, HTMLElement>());
-  const isWalkthroughGenerating = walkthroughStatus === "loading" || walkthroughStatus === "streaming";
+  const isWalkthroughGenerating =
+    walkthroughStatus === "loading" || walkthroughStatus === "streaming";
 
   useEffect(() => {
     if (routeReference) {
@@ -62,8 +63,11 @@ export const PRLayout = (): React.JSX.Element => {
   }, []);
 
   const contextValue = useMemo(
-    () => (prData ? { handleFileElement, handleFileSelect, prData } : null),
-    [handleFileElement, handleFileSelect, prData],
+    () =>
+      prData
+        ? { handleFileElement, handleFileSelect, prData, selectedFilePath, setSidebar }
+        : null,
+    [handleFileElement, handleFileSelect, prData, selectedFilePath, setSidebar],
   );
 
   if (!prData) {
@@ -85,17 +89,15 @@ export const PRLayout = (): React.JSX.Element => {
 
   return (
     <PRContext.Provider value={contextValue}>
-      <div className="grid min-h-screen w-full lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
-        <aside
-          className="sticky top-0 h-screen overflow-hidden border-r bg-card"
-          aria-label="Changed files"
-        >
-          <ChangedFileTree
-            files={prData.files}
-            onSelect={handleFileSelect}
-            selectedPath={selectedFilePath}
-          />
-        </aside>
+      <div
+        className={cn(
+          "min-h-screen w-full",
+          sidebar && "grid lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]",
+        )}
+      >
+        {sidebar ? (
+          <aside className="sticky top-0 h-screen overflow-hidden border-r bg-card">{sidebar}</aside>
+        ) : null}
         <div className="min-w-0">
           <header className="flex flex-col gap-4 border-b bg-background p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

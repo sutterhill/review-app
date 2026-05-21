@@ -1,48 +1,15 @@
-import { PatchDiff } from "@pierre/diffs/react";
-import type { ReactNode } from "react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-import type { PullRequestData } from "../../store/pr/pr-types";
-import { DIFF_OPTIONS, statusBadgeVariant, statusLabel, usePreloadedPatches } from "../diff-utils";
-import { parseUnifiedDiff, type ParsedDiffFile } from "../DiffView";
-import { buildWalkthroughSections, shouldCollapseDiffSection } from "./walkthrough-parser";
+import { buildWalkthroughSections } from "./walkthrough-parser";
 
 interface WalkthroughViewProps {
   walkthrough: string;
-  onFileElement?: (path: string, element: HTMLElement | null) => void;
-  pullRequest: PullRequestData;
 }
 
-export const WalkthroughView = ({
-  walkthrough,
-  onFileElement,
-  pullRequest,
-}: WalkthroughViewProps): React.JSX.Element => {
-  const files = useMemo(
-    () => parseUnifiedDiff(pullRequest.diff, pullRequest.files),
-    [pullRequest.diff, pullRequest.files],
-  );
-  const fileByPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files]);
-  const sections = useMemo(() => buildWalkthroughSections(walkthrough, files), [files, walkthrough]);
-  const preloadedHtml = usePreloadedPatches(files);
-  const [expandedByPath, setExpandedByPath] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    setExpandedByPath({});
-  }, [pullRequest.diff, pullRequest.metadata.reference]);
-
-  const toggleFile = (path: string): void => {
-    const file = fileByPath.get(path);
-    setExpandedByPath((current) => {
-      const currentExpanded = current[path] ?? (file ? !shouldCollapseDiffSection(file) : true);
-      return { ...current, [path]: !currentExpanded };
-    });
-  };
+export const WalkthroughView = ({ walkthrough }: WalkthroughViewProps): React.JSX.Element => {
+  const sections = useMemo(() => buildWalkthroughSections(walkthrough), [walkthrough]);
 
   if (sections.length === 0) {
     return (
@@ -54,123 +21,43 @@ export const WalkthroughView = ({
 
   return (
     <div className="flex flex-col gap-5" aria-label="Pull request walkthrough">
-      {sections.map((section) => (
-        <Fragment key={section.id}>
-          <WalkthroughMarkdown markdown={section.markdown} subtle={section.isFallback} />
-          {section.filePaths.map((path) => {
-            const file = fileByPath.get(path);
-            return file ? (
-              <WalkthroughDiffSection
-                expanded={expandedByPath[path] ?? !shouldCollapseDiffSection(file)}
-                file={file}
-                isFormattingOnly={shouldCollapseDiffSection(file)}
-                key={path}
-                onFileElement={onFileElement}
-                onToggle={() => toggleFile(path)}
-                preloadedHtml={preloadedHtml[path]}
-              />
-            ) : null;
-          })}
-        </Fragment>
-      ))}
+      {sections.map((section, index) => {
+        const headingOffset = sections
+          .slice(0, index)
+          .reduce((count, previousSection) => count + countHeadings(previousSection.markdown), 0);
+
+        return (
+          <WalkthroughMarkdown
+            headingOffset={headingOffset}
+            key={section.id}
+            markdown={section.markdown}
+          />
+        );
+      })}
     </div>
   );
 };
 
-interface WalkthroughDiffSectionProps {
-  expanded: boolean;
-  file: ParsedDiffFile;
-  isFormattingOnly: boolean;
-  onFileElement?: (path: string, element: HTMLElement | null) => void;
-  onToggle: () => void;
-  preloadedHtml?: string;
-}
-
-const WalkthroughDiffSection = ({
-  expanded,
-  file,
-  isFormattingOnly,
-  onFileElement,
-  onToggle,
-  preloadedHtml,
-}: WalkthroughDiffSectionProps): React.JSX.Element => (
-  <section
-    className={cn(
-      "scroll-mt-4 overflow-hidden rounded-lg border bg-background",
-      isFormattingOnly && "opacity-80",
-    )}
-    data-change-status={file.status}
-    ref={(element) => onFileElement?.(file.path, element)}
-  >
-    <header className="flex items-center justify-between gap-4 bg-muted px-4 py-3">
-      <div className="min-w-0">
-        <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
-        <h3 className="mt-2 break-all font-mono text-sm leading-snug text-foreground">
-          {file.path}
-        </h3>
-        {file.previousPath ? (
-          <p className="mt-1 break-all text-xs text-muted-foreground">
-            Renamed from {file.previousPath}
-          </p>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {isFormattingOnly ? <Badge variant="outline">Formatting</Badge> : null}
-        <div className="flex items-center gap-2" aria-label="File change counts">
-          <Badge variant="secondary">+{file.additions}</Badge>
-          <Badge variant="destructive">-{file.deletions}</Badge>
-        </div>
-        <Button
-          aria-expanded={expanded}
-          onClick={onToggle}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          {expanded ? "Collapse" : "Expand"}
-        </Button>
-      </div>
-    </header>
-    <Separator />
-    {expanded ? (
-      file.patch ? (
-        <PatchDiff
-          disableWorkerPool={true}
-          options={DIFF_OPTIONS}
-          patch={file.patch}
-          prerenderedHTML={preloadedHtml}
-        />
-      ) : (
-        <p className="p-4 text-sm text-muted-foreground">
-          No textual diff is available for this file.
-        </p>
-      )
-    ) : (
-      <p className="px-4 py-3 text-sm text-muted-foreground">
-        {isFormattingOnly
-          ? "Collapsed because this looks like formatting noise."
-          : "Diff collapsed."}
-      </p>
-    )}
-  </section>
-);
-
 const WalkthroughMarkdown = ({
+  headingOffset,
   markdown,
-  subtle,
 }: {
+  headingOffset: number;
   markdown: string;
-  subtle: boolean;
-}): React.JSX.Element => (
-  <article
-    className={cn(
-      "flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground",
-      subtle && "text-muted-foreground",
-    )}
-  >
-    {parseMarkdown(markdown).map((block, index) => renderMarkdownBlock(block, index))}
-  </article>
-);
+}): React.JSX.Element => {
+  let localHeadingIndex = 0;
+
+  return (
+    <article className="flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground">
+      {parseMarkdown(markdown).map((block, index) => {
+        const headingId =
+          block.type === "heading" ? `wt-${headingOffset + localHeadingIndex++}` : undefined;
+
+        return renderMarkdownBlock(block, index, headingId);
+      })}
+    </article>
+  );
+};
 
 type MarkdownBlock =
   | { level: number; text: string; type: "heading" }
@@ -249,9 +136,9 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   return blocks;
 };
 
-const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => {
+const renderMarkdownBlock = (block: MarkdownBlock, index: number, headingId?: string): ReactNode => {
   if (block.type === "heading") {
-    return renderHeading(block.level, block.text, index);
+    return renderHeading(block.level, block.text, index, headingId);
   }
 
   if (block.type === "code") {
@@ -307,10 +194,10 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
   return <p key={index}>{renderInlineMarkdown(block.text)}</p>;
 };
 
-const renderHeading = (level: number, text: string, key: number): ReactNode => {
+const renderHeading = (level: number, text: string, key: number, id?: string): ReactNode => {
   if (level === 1) {
     return (
-      <h2 className="text-xl font-semibold leading-tight text-foreground" key={key}>
+      <h2 className="scroll-mt-4 text-xl font-semibold leading-tight text-foreground" id={id} key={key}>
         {renderInlineMarkdown(text)}
       </h2>
     );
@@ -318,18 +205,21 @@ const renderHeading = (level: number, text: string, key: number): ReactNode => {
 
   if (level === 2) {
     return (
-      <h3 className="text-lg font-semibold leading-tight text-foreground" key={key}>
+      <h3 className="scroll-mt-4 text-lg font-semibold leading-tight text-foreground" id={id} key={key}>
         {renderInlineMarkdown(text)}
       </h3>
     );
   }
 
   return (
-    <h4 className="text-base font-semibold leading-tight text-foreground" key={key}>
+    <h4 className="scroll-mt-4 text-base font-semibold leading-tight text-foreground" id={id} key={key}>
       {renderInlineMarkdown(text)}
     </h4>
   );
 };
+
+const countHeadings = (markdown: string): number =>
+  markdown.split("\n").filter((line) => /^(#{1,4})\s+(.+)$/u.test(line)).length;
 
 const renderInlineMarkdown = (text: string): ReactNode[] => {
   const nodes: ReactNode[] = [];
