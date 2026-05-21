@@ -57,3 +57,18 @@ export const statusLabel = (status: ParsedDiffFile["status"]): string => {
   };
   return labels[status];
 };
+
+export const statusBadgeVariant = (
+  status: ParsedDiffFile["status"],
+): "default" | "destructive" | "outline" | "secondary" => {
+  const variants: Record<
+    ParsedDiffFile["status"],
+    "default" | "destructive" | "outline" | "secondary"
+  > = {
+    added: "default",
+    deleted: "destructive",
+    modified: "secondary",
+    renamed: "outline",
+  };
+  return variants[status];
+};
