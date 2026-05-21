@@ -42,7 +42,7 @@ export const MasonryGroups = ({
   }
 
   return (
-    <div aria-label="Changed file groups" className="flex flex-wrap items-start gap-4">
+    <div aria-label="Changed file groups" className="flex flex-wrap items-start gap-x-6 gap-y-8">
       {layout.map((group) => (
         <section
           className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"

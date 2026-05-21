@@ -146,27 +146,29 @@ export const WalkthroughView = ({
             />
           </div>
         </div>
-        <div className="relative px-4 py-6">
-          <MasonryGroups
-            activeFiles={activeFiles}
-            emphasizedRanges={stepEmphasis}
-            files={pullRequest.files}
-            groups={groups}
-            onSelect={setSelectedPath}
-            selectedPath={selectedPath}
-          />
-          {selectedPath ? (
-            <FileOverlayPanel
-              emphasizedRanges={emphasizedRanges}
-              onClose={() => {
-                setSelectedPath(null);
-                setEmphasizedRanges([]);
-              }}
-              onOpenInChanges={() => onOpenInChanges(selectedPath)}
-              pullRequest={pullRequest}
+        <div className="px-4 py-6">
+          <div className="sticky top-[7rem] max-h-[calc(100vh-7rem)] overflow-y-auto pr-2">
+            <MasonryGroups
+              activeFiles={activeFiles}
+              emphasizedRanges={stepEmphasis}
+              files={pullRequest.files}
+              groups={groups}
+              onSelect={setSelectedPath}
               selectedPath={selectedPath}
             />
-          ) : null}
+            {selectedPath ? (
+              <FileOverlayPanel
+                emphasizedRanges={emphasizedRanges}
+                onClose={() => {
+                  setSelectedPath(null);
+                  setEmphasizedRanges([]);
+                }}
+                onOpenInChanges={() => onOpenInChanges(selectedPath)}
+                pullRequest={pullRequest}
+                selectedPath={selectedPath}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
     </WorkerPoolContextProvider>
