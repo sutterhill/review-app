@@ -11,12 +11,16 @@ interface ChangedFileTreeProps {
   files: PullRequestFile[];
   onSelect(path: string): void;
   selectedPath: string | null;
+  viewedPaths?: ReadonlySet<string>;
 }
+
+const EMPTY_VIEWED_PATHS: ReadonlySet<string> = new Set();
 
 export const ChangedFileTree = ({
   files,
   onSelect,
   selectedPath,
+  viewedPaths = EMPTY_VIEWED_PATHS,
 }: ChangedFileTreeProps): React.JSX.Element => {
   const paths = useMemo(() => files.map((file) => file.filename), [files]);
   const pathSet = useMemo(() => new Set(paths), [paths]);
@@ -31,6 +35,7 @@ export const ChangedFileTree = ({
   const onSelectRef = useRef(onSelect);
   const pathSetRef = useRef(pathSet);
   const statusByPathRef = useRef(statusByPath);
+  const viewedPathsRef = useRef(viewedPaths);
   const { model } = useFileTree({
     flattenEmptyDirectories: true,
     gitStatus,
@@ -43,7 +48,8 @@ export const ChangedFileTree = ({
       }
     },
     paths,
-    renderRowDecoration: (context) => renderStatusDecoration(context, statusByPathRef.current),
+    renderRowDecoration: (context) =>
+      renderStatusDecoration(context, statusByPathRef.current, viewedPathsRef.current),
     search: true,
   });
 
@@ -51,12 +57,17 @@ export const ChangedFileTree = ({
     onSelectRef.current = onSelect;
     pathSetRef.current = pathSet;
     statusByPathRef.current = statusByPath;
-  }, [onSelect, pathSet, statusByPath]);
+    viewedPathsRef.current = viewedPaths;
+  }, [onSelect, pathSet, statusByPath, viewedPaths]);
 
   useEffect(() => {
     model.resetPaths(paths);
     model.setGitStatus(gitStatus);
   }, [gitStatus, model, paths]);
+
+  useEffect(() => {
+    model.setGitStatus(gitStatus);
+  }, [gitStatus, model, viewedPaths]);
 
   useEffect(() => {
     for (const path of model.getSelectedPaths()) {
@@ -86,9 +97,15 @@ export const ChangedFileTree = ({
 const renderStatusDecoration = (
   context: FileTreeRowDecorationContext,
   statusByPath: ReadonlyMap<string, PullRequestFileStatus>,
+  viewedPaths: ReadonlySet<string>,
 ) => {
   const status = statusByPath.get(context.item.path);
-  return status ? { text: shortStatusLabel(status), title: statusLabel(status) } : null;
+  if (!status) return null;
+  const isViewed = viewedPaths.has(context.item.path);
+  if (isViewed) {
+    return { text: `✓ ${shortStatusLabel(status)}`, title: `Viewed · ${statusLabel(status)}` };
+  }
+  return { text: shortStatusLabel(status), title: statusLabel(status) };
 };
 
 const toGitStatus = (status: PullRequestFileStatus): GitStatus => {
