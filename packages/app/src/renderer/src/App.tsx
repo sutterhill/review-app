@@ -3,6 +3,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, Route, Routes, useParams } from "react-router";
 
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
 import { Login } from "./components/Login";
@@ -70,68 +82,99 @@ const PullRequestRoute = (): React.JSX.Element => {
   }, []);
 
   return (
-    <section className={prData ? "panel panel-wide" : "panel"}>
-      <p className="eyebrow">Pull Request</p>
-      <h1>
-        {owner}/{repo}#{number}
-      </h1>
-      <form className="stack" onSubmit={handleFetchSubmit}>
-        <label htmlFor="pr-reference">Pull request reference</label>
-        <input
-          id="pr-reference"
-          onChange={(event) => setPrReference(event.target.value)}
-          placeholder="owner/repo#123"
-          type="text"
-          value={prReference}
-        />
-        <button className="button" disabled={prStatus === "loading"} type="submit">
-          {prStatus === "loading" ? "Fetching..." : "Fetch PR"}
-        </button>
-      </form>
-      {prData ? (
-        <div className="review-layout">
-          <aside className="file-sidebar" aria-label="Changed files">
-            <ChangedFileTree
-              files={prData.files}
-              onSelect={handleFileSelect}
-              selectedPath={selectedFilePath}
-            />
-          </aside>
-          <div className="diff-panel">
-            <div className="result-card">
-              <p className="eyebrow">Fetched PR</p>
-              <h2>{prData.metadata.title}</h2>
-              <p>
-                {prData.metadata.author.login} opened {prData.metadata.reference} with{" "}
-                {prData.files.length} changed files.
-              </p>
-              <button
-                className="button"
-                disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
-                onClick={handleNarrativeGenerate}
-                type="button"
-              >
-                {narrativeStatus === "loading" || narrativeStatus === "streaming"
-                  ? "Generating narrative..."
-                  : "Generate narrative"}
-              </button>
-              {narrativeError ? <p className="error">{narrativeError}</p> : null}
-            </div>
-            {narrativeContent ? (
-              <NarrativeView
-                narrative={narrativeContent}
-                onFileElement={handleFileElement}
-                pullRequest={prData}
+    <Card
+      className={cn(
+        "w-full",
+        prData ? "max-w-[min(118rem,calc(100vw-2rem))]" : "max-w-2xl",
+      )}
+    >
+      <CardHeader>
+        <CardDescription className="text-xs font-semibold uppercase tracking-widest text-primary">
+          Pull Request
+        </CardDescription>
+        <CardTitle className="text-xl tracking-tight">
+          {owner}/{repo}#{number}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <form className="flex flex-col gap-3" onSubmit={handleFetchSubmit}>
+          <label className="text-sm font-medium" htmlFor="pr-reference">
+            Pull request reference
+          </label>
+          <Input
+            id="pr-reference"
+            onChange={(event) => setPrReference(event.target.value)}
+            placeholder="owner/repo#123"
+            type="text"
+            value={prReference}
+          />
+          <Button className="w-fit" disabled={prStatus === "loading"} type="submit">
+            {prStatus === "loading" ? "Fetching..." : "Fetch PR"}
+          </Button>
+        </form>
+        {prData ? (
+          <div className="grid gap-5 lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
+            <aside
+              className="h-72 min-h-72 overflow-hidden rounded-lg border bg-card lg:h-[calc(100vh-18rem)] lg:min-h-[28rem]"
+              aria-label="Changed files"
+            >
+              <ChangedFileTree
+                files={prData.files}
+                onSelect={handleFileSelect}
+                selectedPath={selectedFilePath}
               />
-            ) : (
-              <DiffView onFileElement={handleFileElement} pullRequest={prData} />
-            )}
+            </aside>
+            <div className="min-w-0">
+              <Card className="mb-5" size="sm">
+                <CardHeader className="border-b">
+                  <CardDescription className="text-xs font-semibold uppercase tracking-widest text-primary">
+                    Fetched PR
+                  </CardDescription>
+                  <CardTitle>{prData.metadata.title}</CardTitle>
+                  <CardDescription>
+                    {prData.metadata.author.login} opened {prData.metadata.reference} with{" "}
+                    {prData.files.length} changed files.
+                  </CardDescription>
+                  <CardAction>
+                    <Button
+                      disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
+                      onClick={handleNarrativeGenerate}
+                      size="sm"
+                      type="button"
+                    >
+                      {narrativeStatus === "loading" || narrativeStatus === "streaming"
+                        ? "Generating narrative..."
+                        : "Generate narrative"}
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                {narrativeError ? (
+                  <CardContent>
+                    <p className="text-sm text-destructive">{narrativeError}</p>
+                  </CardContent>
+                ) : null}
+              </Card>
+              {narrativeContent ? (
+                <NarrativeView
+                  narrative={narrativeContent}
+                  onFileElement={handleFileElement}
+                  pullRequest={prData}
+                />
+              ) : (
+                <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+              )}
+            </div>
           </div>
-        </div>
-      ) : null}
-      {prError ? <p className="error">{prError.message}</p> : null}
-      <Link to="/">Back to pull requests</Link>
-    </section>
+        ) : null}
+        {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
+        <Link
+          className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          to="/"
+        >
+          Back to pull requests
+        </Link>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -139,7 +182,7 @@ export const App = (): React.JSX.Element => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   return (
-    <main className="app-shell">
+    <main className="min-h-screen w-full bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
       {isAuthenticated ? (
         <Routes>
           <Route element={<PRList />} path="/" />
