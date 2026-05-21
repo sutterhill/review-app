@@ -2,14 +2,22 @@ import { useMemo, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { buildWalkthroughSections } from "./walkthrough-parser";
+import { buildWalkthroughSections, splitProseAndDiffs } from "./walkthrough-parser";
 
 interface WalkthroughViewProps {
+  onFileClick?: (path: string) => void;
   walkthrough: string;
 }
 
-export const WalkthroughView = ({ walkthrough }: WalkthroughViewProps): React.JSX.Element => {
+export const WalkthroughView = ({
+  onFileClick,
+  walkthrough,
+}: WalkthroughViewProps): React.JSX.Element => {
   const sections = useMemo(() => buildWalkthroughSections(walkthrough), [walkthrough]);
+  const splitSections = useMemo(
+    () => sections.map((section) => ({ ...section, ...splitProseAndDiffs(section.markdown) })),
+    [sections],
+  );
 
   if (sections.length === 0) {
     return (
@@ -21,16 +29,39 @@ export const WalkthroughView = ({ walkthrough }: WalkthroughViewProps): React.JS
 
   return (
     <div className="flex flex-col gap-5" aria-label="Pull request walkthrough">
-      {sections.map((section, index) => {
-        const headingOffset = sections
+      {splitSections.map((section, index) => {
+        const headingOffset = splitSections
           .slice(0, index)
-          .reduce((count, previousSection) => count + countHeadings(previousSection.markdown), 0);
+          .reduce((count, previousSection) => count + countHeadings(previousSection.prose), 0);
+
+        if (section.diffs.length > 0) {
+          return (
+            <div className="grid grid-cols-[minmax(0,70ch)_minmax(0,1fr)] gap-6" key={section.id}>
+              <WalkthroughMarkdown
+                headingOffset={headingOffset}
+                markdown={section.prose}
+                onFileClick={onFileClick}
+              />
+              <div className="sticky top-4 flex flex-col gap-3 self-start">
+                {section.diffs.map((diff) => (
+                  <div className="flex flex-col gap-1" key={`${diff.label ?? "diff"}:${diff.code}`}>
+                    {diff.label ? (
+                      <p className="text-xs italic text-muted-foreground">{diff.label}</p>
+                    ) : null}
+                    <DiffBlock code={diff.code} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
 
         return (
           <WalkthroughMarkdown
             headingOffset={headingOffset}
             key={section.id}
-            markdown={section.markdown}
+            markdown={section.prose}
+            onFileClick={onFileClick}
           />
         );
       })}
@@ -41,9 +72,11 @@ export const WalkthroughView = ({ walkthrough }: WalkthroughViewProps): React.JS
 const WalkthroughMarkdown = ({
   headingOffset,
   markdown,
+  onFileClick,
 }: {
   headingOffset: number;
   markdown: string;
+  onFileClick?: (path: string) => void;
 }): React.JSX.Element => {
   let localHeadingIndex = 0;
 
@@ -53,7 +86,7 @@ const WalkthroughMarkdown = ({
         const headingId =
           block.type === "heading" ? `wt-${headingOffset + localHeadingIndex++}` : undefined;
 
-        return renderMarkdownBlock(block, index, headingId);
+        return renderMarkdownBlock(block, index, headingId, onFileClick);
       })}
     </article>
   );
@@ -62,6 +95,7 @@ const WalkthroughMarkdown = ({
 type MarkdownBlock =
   | { level: number; text: string; type: "heading" }
   | { code: string; language: string; type: "code" }
+  | { type: "hr" }
   | { ordered: boolean; items: string[]; type: "list" }
   | { text: string; type: "paragraph" };
 
@@ -114,6 +148,10 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
       flushParagraph();
       flushList();
       blocks.push({ level: heading[1]?.length ?? 1, text: heading[2] ?? "", type: "heading" });
+    } else if (/^[-*_]{3,}$/u.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: "hr" });
     } else if (listItem) {
       flushParagraph();
       orderedList = Boolean(listItem[1]);
@@ -136,35 +174,19 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   return blocks;
 };
 
-const renderMarkdownBlock = (block: MarkdownBlock, index: number, headingId?: string): ReactNode => {
+const renderMarkdownBlock = (
+  block: MarkdownBlock,
+  index: number,
+  headingId?: string,
+  onFileClick?: (path: string) => void,
+): ReactNode => {
   if (block.type === "heading") {
-    return renderHeading(block.level, block.text, index, headingId);
+    return renderHeading(block.level, block.text, index, headingId, onFileClick);
   }
 
   if (block.type === "code") {
     if (block.language === "diff") {
-      const lineOccurrences = new Map<string, number>();
-
-      return (
-        <pre
-          className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs"
-          key={index}
-        >
-          {block.code.split("\n").map((line) => {
-            const occurrence = lineOccurrences.get(line) ?? 0;
-            let lineClass = "text-foreground";
-            lineOccurrences.set(line, occurrence + 1);
-            if (line.startsWith("+")) lineClass = "text-green-400";
-            else if (line.startsWith("-")) lineClass = "text-red-400";
-            else if (line.startsWith("@@")) lineClass = "text-blue-400";
-            return (
-              <div key={`${line}-${occurrence}`} className={lineClass}>
-                {line || " "}
-              </div>
-            );
-          })}
-        </pre>
-      );
+      return <DiffBlock code={block.code} key={index} />;
     }
 
     return (
@@ -177,6 +199,10 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number, headingId?: st
     );
   }
 
+  if (block.type === "hr") {
+    return <hr className="border-border" key={index} />;
+  }
+
   if (block.type === "list") {
     const ListTag = block.ordered ? "ol" : "ul";
     return (
@@ -185,35 +211,53 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number, headingId?: st
         key={index}
       >
         {block.items.map((item) => (
-          <li key={item}>{renderInlineMarkdown(item)}</li>
+          <li key={item}>{renderInlineMarkdown(item, onFileClick)}</li>
         ))}
       </ListTag>
     );
   }
 
-  return <p key={index}>{renderInlineMarkdown(block.text)}</p>;
+  return <p key={index}>{renderInlineMarkdown(block.text, onFileClick)}</p>;
 };
 
-const renderHeading = (level: number, text: string, key: number, id?: string): ReactNode => {
+const renderHeading = (
+  level: number,
+  text: string,
+  key: number,
+  id?: string,
+  onFileClick?: (path: string) => void,
+): ReactNode => {
   if (level === 1) {
     return (
-      <h2 className="scroll-mt-4 text-xl font-semibold leading-tight text-foreground" id={id} key={key}>
-        {renderInlineMarkdown(text)}
+      <h2
+        className="scroll-mt-4 text-xl font-semibold leading-tight text-foreground"
+        id={id}
+        key={key}
+      >
+        {renderInlineMarkdown(text, onFileClick)}
       </h2>
     );
   }
 
   if (level === 2) {
     return (
-      <h3 className="scroll-mt-4 text-lg font-semibold leading-tight text-foreground" id={id} key={key}>
-        {renderInlineMarkdown(text)}
+      <h3
+        className="scroll-mt-4 text-lg font-semibold leading-tight text-foreground"
+        id={id}
+        key={key}
+      >
+        {renderInlineMarkdown(text, onFileClick)}
       </h3>
     );
   }
 
   return (
-    <h4 className="scroll-mt-4 text-base font-semibold leading-tight text-foreground" id={id} key={key}>
-      {renderInlineMarkdown(text)}
+    <h4
+      className="scroll-mt-4 text-base font-semibold leading-tight text-foreground"
+      id={id}
+      key={key}
+    >
+      {renderInlineMarkdown(text, onFileClick)}
     </h4>
   );
 };
@@ -221,7 +265,28 @@ const renderHeading = (level: number, text: string, key: number, id?: string): R
 const countHeadings = (markdown: string): number =>
   markdown.split("\n").filter((line) => /^(#{1,4})\s+(.+)$/u.test(line)).length;
 
-const renderInlineMarkdown = (text: string): ReactNode[] => {
+const DiffBlock = ({ code }: { code: string }): React.JSX.Element => {
+  const lineOccurrences = new Map<string, number>();
+  return (
+    <pre className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs">
+      {code.split("\n").map((line) => {
+        const occurrence = lineOccurrences.get(line) ?? 0;
+        lineOccurrences.set(line, occurrence + 1);
+        let lineClass = "text-foreground";
+        if (line.startsWith("+")) lineClass = "text-green-400";
+        else if (line.startsWith("-")) lineClass = "text-red-400";
+        else if (line.startsWith("@@")) lineClass = "text-blue-400";
+        return (
+          <div key={`${line}-${occurrence}`} className={lineClass}>
+            {line || " "}
+          </div>
+        );
+      })}
+    </pre>
+  );
+};
+
+const renderInlineMarkdown = (text: string, onFileClick?: (path: string) => void): ReactNode[] => {
   const nodes: ReactNode[] = [];
   const codePattern = /`([^`]+)`/gu;
   let lastIndex = 0;
@@ -231,14 +296,31 @@ const renderInlineMarkdown = (text: string): ReactNode[] => {
       nodes.push(text.slice(lastIndex, match.index));
     }
 
-    nodes.push(
-      <code
-        className="rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-foreground"
-        key={`${match.index}-${match[1]}`}
-      >
-        {match[1]}
-      </code>,
-    );
+    const codeText = match[1] ?? "";
+    if (isFilePathReference(codeText)) {
+      nodes.push(
+        <a
+          className="cursor-pointer rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-primary underline-offset-2 hover:underline"
+          href="../diff"
+          key={`${match.index}-${codeText}`}
+          onClick={(event) => {
+            event.preventDefault();
+            onFileClick?.(codeText);
+          }}
+        >
+          {codeText}
+        </a>,
+      );
+    } else {
+      nodes.push(
+        <code
+          className="rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-foreground"
+          key={`${match.index}-${codeText}`}
+        >
+          {codeText}
+        </code>,
+      );
+    }
     lastIndex = match.index + match[0].length;
   }
 
@@ -248,3 +330,6 @@ const renderInlineMarkdown = (text: string): ReactNode[] => {
 
   return nodes;
 };
+
+const isFilePathReference = (text: string): boolean =>
+  text.includes("/") || /\.(?:css|go|js|json|jsx|py|rs|ts|tsx)$/u.test(text);

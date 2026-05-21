@@ -64,9 +64,7 @@ export const PRLayout = (): React.JSX.Element => {
 
   const contextValue = useMemo(
     () =>
-      prData
-        ? { handleFileElement, handleFileSelect, prData, selectedFilePath, setSidebar }
-        : null,
+      prData ? { handleFileElement, handleFileSelect, prData, selectedFilePath, setSidebar } : null,
     [handleFileElement, handleFileSelect, prData, selectedFilePath, setSidebar],
   );
 
@@ -96,7 +94,9 @@ export const PRLayout = (): React.JSX.Element => {
         )}
       >
         {sidebar ? (
-          <aside className="sticky top-0 h-screen overflow-hidden border-r bg-card">{sidebar}</aside>
+          <aside className="sticky top-0 h-screen overflow-hidden border-r bg-card">
+            {sidebar}
+          </aside>
         ) : null}
         <div className="min-w-0">
           <header className="flex flex-col gap-4 border-b bg-background p-4">
@@ -124,18 +124,18 @@ export const PRLayout = (): React.JSX.Element => {
           <nav className="flex w-full gap-1 border-b px-4" aria-label="Pull request sections">
             <NavLink
               className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
-              to="diff"
-            >
-              Diff
-            </NavLink>
-            <NavLink
-              className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
               to="walkthrough"
             >
               Walkthrough
               {isWalkthroughGenerating ? (
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
               ) : null}
+            </NavLink>
+            <NavLink
+              className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
+              to="diff"
+            >
+              Diff
             </NavLink>
             <NavLink
               className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
