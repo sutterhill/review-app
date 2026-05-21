@@ -1,31 +1,39 @@
 import { useMemo } from "react";
 
-import { cn } from "@/lib/utils";
-
 import type { LineRange } from "../../store/walkthrough/walkthrough-types";
 import { overlapsRanges, parsePatchForMinimap, type MinimapSegment } from "./minimap-utils";
 
 interface FileDiffMinimapProps {
   active?: boolean;
   emphasizedRanges?: LineRange[];
-  height?: number;
+  fileLines: number;
+  maxFileLines: number;
   patch: string;
 }
 
+const WIDTH_PX = 150;
+const MAX_HEIGHT_PX = 300;
+const MIN_HEIGHT_PX = 36;
 const BAR_HEIGHT_PX = 3;
 const BAR_GAP_PX = 2;
-const PADDING_X_PX = 10;
-const PADDING_Y_PX = 10;
+const PADDING_X_PX = 6;
+const PADDING_Y_PX = 6;
+const ADDITION_COLOR = "#E9F5E8";
+const DELETION_COLOR = "#FFE9E7";
+const ADDITION_COLOR_EMPHASIZED = "#A7E0A4";
+const DELETION_COLOR_EMPHASIZED = "#F5BDB6";
 
 export const FileDiffMinimap = ({
-  active = false,
   emphasizedRanges,
-  height = 220,
+  fileLines,
+  maxFileLines,
   patch,
 }: FileDiffMinimapProps): React.JSX.Element => {
   const data = useMemo(() => parsePatchForMinimap(patch), [patch]);
   const hasEmphasis = !!emphasizedRanges && emphasizedRanges.length > 0;
   const visibleSegments = data.segments.filter((segment) => segment.kind !== "context");
+  const ratio = maxFileLines > 0 ? Math.min(fileLines / maxFileLines, 1) : 0;
+  const height = Math.max(MIN_HEIGHT_PX, Math.round(ratio * MAX_HEIGHT_PX));
   const usableHeight = Math.max(height - PADDING_Y_PX * 2, BAR_HEIGHT_PX);
   const denom = Math.max(data.newLineCount, 1);
   const lineSlot = BAR_HEIGHT_PX + BAR_GAP_PX;
@@ -37,11 +45,8 @@ export const FileDiffMinimap = ({
           ? "No diff content"
           : `Diff minimap: +${data.additions} -${data.deletions}`
       }
-      className={cn(
-        "relative w-full overflow-hidden rounded-[4px] border border-border/50 bg-card transition-colors",
-        active && "border-foreground/80 shadow-[0_0_0_1px_var(--color-foreground)]",
-      )}
-      style={{ height }}
+      className="relative overflow-hidden rounded-[4px] bg-card"
+      style={{ height, width: WIDTH_PX }}
     >
       {visibleSegments.length === 0 ? (
         <div className="flex h-full items-center justify-center text-[0.6rem] text-muted-foreground">
@@ -91,25 +96,21 @@ const MinimapSegmentBar = ({
     paddingY +
     Math.min(Math.max(positionalTop, slotTop * 0.35), Math.max(usableHeight - BAR_HEIGHT_PX, 0));
   const widthPct = segment.widthRatio * 100;
-  const colorClass =
-    segment.kind === "addition"
-      ? "bg-emerald-300/80 dark:bg-emerald-400/60"
-      : "bg-rose-200 dark:bg-rose-400/60";
+  const baseColor = segment.kind === "addition" ? ADDITION_COLOR : DELETION_COLOR;
+  const emphasizedColor =
+    segment.kind === "addition" ? ADDITION_COLOR_EMPHASIZED : DELETION_COLOR_EMPHASIZED;
 
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        "absolute rounded-[1px]",
-        colorClass,
-        emphasized && "ring-1 ring-primary ring-offset-1 ring-offset-background",
-      )}
+      className="absolute rounded-[1px]"
       style={{
+        backgroundColor: emphasized ? emphasizedColor : baseColor,
         height: `${BAR_HEIGHT_PX}px`,
         left: `${paddingX}px`,
+        maxWidth: `calc(100% - ${paddingX * 2}px)`,
         top: `${topPx}px`,
         width: `${widthPct}%`,
-        maxWidth: `calc(100% - ${paddingX * 2}px)`,
       }}
     />
   );

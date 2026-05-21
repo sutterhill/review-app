@@ -28,6 +28,10 @@ export const MasonryGroups = ({
   selectedPath,
 }: MasonryGroupsProps): React.JSX.Element => {
   const layout = useMemo<GroupRender[]>(() => buildGroupLayout(files, groups), [files, groups]);
+  const maxFileLines = useMemo(
+    () => files.reduce((max, file) => Math.max(max, file.additions + file.deletions), 0),
+    [files],
+  );
 
   if (layout.length === 0) {
     return (
@@ -51,7 +55,7 @@ export const MasonryGroups = ({
               {group.files.length}
             </span>
           </header>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+          <div className="flex flex-wrap items-start gap-4">
             {group.files.map((file) => (
               <FileMasonryCard
                 active={selectedPath === file.filename}
@@ -61,6 +65,7 @@ export const MasonryGroups = ({
                 emphasizedRanges={emphasizedRanges[file.filename]}
                 file={file}
                 key={file.filename}
+                maxFileLines={maxFileLines}
                 onClick={onSelect}
               />
             ))}
