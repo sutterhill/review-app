@@ -54,8 +54,10 @@ describe("fetchPullRequestFromGitHub", () => {
       }
 
       return jsonResponse({
+        base: { sha: "base-sha" },
         body: "Adds app value.",
         created_at: "2026-05-20T00:00:00.000Z",
+        head: { ref: "feature-branch", sha: "head-sha" },
         html_url: "https://github.com/acme/repo/pull/42",
         labels: [{ name: "feature" }, "review"],
         number: 42,
@@ -71,6 +73,9 @@ describe("fetchPullRequestFromGitHub", () => {
 
     expect(data.metadata).toMatchObject({
       author: { login: "octocat" },
+      baseSha: "base-sha",
+      headRefName: "feature-branch",
+      headSha: "head-sha",
       labels: ["feature", "review"],
       number: 42,
       reference: "acme/repo#42",
@@ -86,6 +91,43 @@ describe("fetchPullRequestFromGitHub", () => {
         headers: expect.objectContaining({ Authorization: "Bearer github-token" }),
       }),
     );
+  });
+
+  it("returns metadata and files with an empty diff when the diff request fails", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url, init) => {
+      const accept = new Headers(init?.headers).get("Accept");
+
+      if (url.endsWith("/files?per_page=100&page=1")) {
+        return jsonResponse([gitHubFile(0)]);
+      }
+
+      if (url.endsWith("/files?per_page=100&page=2")) {
+        return jsonResponse([]);
+      }
+
+      if (accept === "application/vnd.github.v3.diff") {
+        return jsonResponse({ message: "Diff is too large." }, { status: 422 });
+      }
+
+      return jsonResponse({
+        base: { sha: "base-sha" },
+        head: { ref: "feature-branch", sha: "head-sha" },
+        number: 42,
+        title: "Add app value",
+      });
+    });
+
+    await expect(fetchPullRequestFromGitHub("acme/repo#42")).resolves.toMatchObject({
+      diff: "",
+      files: [{ filename: "src/file-0.ts" }],
+      metadata: {
+        baseSha: "base-sha",
+        headRefName: "feature-branch",
+        headSha: "head-sha",
+        number: 42,
+      },
+    });
   });
 });
 

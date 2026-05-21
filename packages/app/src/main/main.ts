@@ -80,6 +80,27 @@ ipcMain.handle("repo:clone", async (_event, fullName: unknown) => {
 
 ipcMain.handle("repo:locate", async () => chooseDirectory("Select a local repository checkout"));
 
+ipcMain.handle(
+  "repo:diff",
+  async (_event, repoPath: unknown, baseSha: unknown, headSha: unknown) => {
+    if (
+      typeof repoPath !== "string" ||
+      typeof baseSha !== "string" ||
+      typeof headSha !== "string"
+    ) {
+      throw new Error("Invalid repo diff request.");
+    }
+
+    await execFileAsync("git", ["fetch", "origin"], { cwd: repoPath, timeout: 30_000 });
+
+    const { stdout } = await execFileAsync("git", ["diff", `${baseSha}...${headSha}`], {
+      cwd: repoPath,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    return stdout;
+  },
+);
+
 ipcMain.handle("repos:save-registry", async (_event, entries: unknown) => {
   if (typeof entries !== "object" || entries === null) {
     throw new Error("Invalid repo registry data.");

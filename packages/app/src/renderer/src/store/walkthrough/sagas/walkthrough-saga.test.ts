@@ -32,8 +32,11 @@ const pullRequest: PullRequestData = {
   ],
   metadata: {
     author: { avatarUrl: null, login: "octocat", url: "" },
+    baseSha: "base-sha",
     body: "Adds app value.",
     createdAt: "2026-05-20T00:00:00.000Z",
+    headRefName: "feature-branch",
+    headSha: "head-sha",
     htmlUrl: "https://github.com/acme/repo/pull/1",
     labels: ["feature"],
     number: 1,

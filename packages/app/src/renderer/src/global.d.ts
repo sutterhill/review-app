@@ -26,6 +26,7 @@ declare global {
     };
     reviewAppRepos: {
       clone: (fullName: string) => Promise<string | null>;
+      diff: (repoPath: string, baseSha: string, headSha: string) => Promise<string>;
       loadRegistry: () => Promise<Record<string, { fullName: string; localPath: string }>>;
       listWorktrees: (repoPath: string) => Promise<Array<{ branch: string; path: string }>>;
       locate: () => Promise<string | null>;

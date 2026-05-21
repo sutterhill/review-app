@@ -30,9 +30,10 @@ interface GitHubLabelResponse {
 }
 
 interface GitHubPullResponse {
+  base?: { sha?: string };
   body?: string | null;
   created_at?: string;
-  head?: { ref?: string };
+  head?: { ref?: string; sha?: string };
   html_url?: string;
   labels?: Array<GitHubLabelResponse | string>;
   number?: number;
@@ -114,7 +115,7 @@ export const fetchPullRequestFromGitHub = async (reference: string): Promise<Pul
   const [pull, files, diff] = await Promise.all([
     requestGitHub<GitHubPullResponse>(pullPath, token),
     fetchPullRequestFiles(pullPath, token),
-    requestGitHubText(pullPath, token, "application/vnd.github.v3.diff"),
+    requestGitHubText(pullPath, token, "application/vnd.github.v3.diff").catch(() => ""),
   ]);
 
   return {
@@ -287,8 +288,11 @@ const toPullRequestMetadata = (
   pull: GitHubPullResponse,
 ): PullRequestMetadata => ({
   author: toGitHubAccount(pull.user),
+  baseSha: pull.base?.sha ?? "",
   body: pull.body ?? "",
   createdAt: pull.created_at ?? "",
+  headRefName: pull.head?.ref ?? "",
+  headSha: pull.head?.sha ?? "",
   htmlUrl: pull.html_url ?? "",
   labels: (pull.labels ?? []).map(toLabelName).filter((label) => label.length > 0),
   number: pull.number ?? pullReference.number,

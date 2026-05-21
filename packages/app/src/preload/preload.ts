@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld("reviewAppRepos", {
     const localPath = await ipcRenderer.invoke("repo:clone", fullName);
     return typeof localPath === "string" ? localPath : null;
   },
+  diff: async (repoPath: string, baseSha: string, headSha: string): Promise<string> => {
+    const result = await ipcRenderer.invoke("repo:diff", repoPath, baseSha, headSha);
+    return typeof result === "string" ? result : "";
+  },
   loadRegistry: async (): Promise<RepoRegistryData> => {
     const result = await ipcRenderer.invoke("repos:load-registry");
     return typeof result === "object" && result !== null ? (result as RepoRegistryData) : {};

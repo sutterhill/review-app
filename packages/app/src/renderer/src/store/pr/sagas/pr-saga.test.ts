@@ -8,6 +8,8 @@ import {
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
 } from "../../../services/github";
+import { generateLocalDiff } from "../../../services/repo-manager";
+import { selectRepoEntries } from "../../repos/repos-selectors";
 import { selectPrReference } from "../pr-selectors";
 import { prActions } from "../pr-slice";
 import type { PullRequestComment, PullRequestData, PullRequestSummary } from "../pr-types";
@@ -23,8 +25,11 @@ const pullRequest: PullRequestData = {
   files: [],
   metadata: {
     author: { avatarUrl: null, login: "octocat", url: "" },
+    baseSha: "base-sha",
     body: "Adds app value.",
     createdAt: "2026-05-20T00:00:00.000Z",
+    headRefName: "feature-branch",
+    headSha: "head-sha",
     htmlUrl: "https://github.com/acme/repo/pull/1",
     labels: [],
     number: 1,
@@ -65,6 +70,54 @@ describe("prSaga", () => {
 
     expect(generator.next().value).toEqual(call(fetchPullRequestFromGitHub, "acme/repo#1"));
     expect(generator.next(pullRequest).value).toEqual(put(prActions.fetchPrSucceeded(pullRequest)));
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("falls back to local diff when the GitHub diff is empty", () => {
+    const generator = fetchPrSaga(prActions.fetchPr("acme/repo#1"));
+    const pullRequestWithoutDiff = { ...pullRequest, diff: "" };
+    const localDiff = "diff --git a/src/local.ts b/src/local.ts";
+
+    expect(generator.next().value).toEqual(call(fetchPullRequestFromGitHub, "acme/repo#1"));
+    expect(generator.next(pullRequestWithoutDiff).value).toEqual(select(selectRepoEntries));
+    expect(
+      generator.next({
+        "acme/repo": {
+          error: null,
+          fullName: "acme/repo",
+          localPath: "/repos/acme/repo",
+          status: "ready",
+          worktrees: null,
+        },
+      }).value,
+    ).toEqual(call(generateLocalDiff, "/repos/acme/repo", "base-sha", "head-sha"));
+    expect(generator.next(localDiff).value).toEqual(
+      put(prActions.fetchPrSucceeded({ ...pullRequestWithoutDiff, diff: localDiff })),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("prefers a worktree matching the pull request head branch for local diff fallback", () => {
+    const generator = fetchPrSaga(prActions.fetchPr("acme/repo#1"));
+    const pullRequestWithoutDiff = { ...pullRequest, diff: "" };
+    const localDiff = "diff --git a/src/worktree.ts b/src/worktree.ts";
+
+    expect(generator.next().value).toEqual(call(fetchPullRequestFromGitHub, "acme/repo#1"));
+    expect(generator.next(pullRequestWithoutDiff).value).toEqual(select(selectRepoEntries));
+    expect(
+      generator.next({
+        "acme/repo": {
+          error: null,
+          fullName: "acme/repo",
+          localPath: "/repos/acme/repo",
+          status: "ready",
+          worktrees: [{ branch: "feature-branch", path: "/repos/acme/repo-feature" }],
+        },
+      }).value,
+    ).toEqual(call(generateLocalDiff, "/repos/acme/repo-feature", "base-sha", "head-sha"));
+    expect(generator.next(localDiff).value).toEqual(
+      put(prActions.fetchPrSucceeded({ ...pullRequestWithoutDiff, diff: localDiff })),
+    );
     expect(generator.next().done).toBe(true);
   });
 

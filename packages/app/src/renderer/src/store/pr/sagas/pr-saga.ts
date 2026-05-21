@@ -8,6 +8,10 @@ import {
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
 } from "../../../services/github";
+import { generateLocalDiff } from "../../../services/repo-manager";
+import { selectRepoEntries } from "../../repos/repos-selectors";
+import { normalizeRepoKey } from "../../repos/repos-slice";
+import type { RepoRegistryEntry } from "../../repos/repos-types";
 import { selectPrReference } from "../pr-selectors";
 import { prActions } from "../pr-slice";
 import type {
@@ -20,7 +24,34 @@ import type {
 export function* fetchPrSaga(action: PayloadAction<string>): Generator {
   try {
     const data = (yield call(fetchPullRequestFromGitHub, action.payload)) as PullRequestData;
-    yield put(prActions.fetchPrSucceeded(data));
+    let resolvedData = data;
+
+    if (data.diff === "" && data.metadata.baseSha && data.metadata.headSha) {
+      const repoKey = normalizeRepoKey(`${data.metadata.owner}/${data.metadata.repo}`);
+      const entries = (yield select(selectRepoEntries)) as Record<string, RepoRegistryEntry>;
+      const repoEntry = entries[repoKey];
+
+      if (repoEntry?.localPath) {
+        const worktree = repoEntry.worktrees?.find(
+          (entry) => entry.branch === data.metadata.headRefName,
+        );
+        const diffPath = worktree?.path ?? repoEntry.localPath;
+
+        try {
+          const localDiff = (yield call(
+            generateLocalDiff,
+            diffPath,
+            data.metadata.baseSha,
+            data.metadata.headSha,
+          )) as string;
+          resolvedData = { ...data, diff: localDiff };
+        } catch {
+          resolvedData = data;
+        }
+      }
+    }
+
+    yield put(prActions.fetchPrSucceeded(resolvedData));
   } catch (error) {
     yield put(prActions.fetchPrFailed(toPrFetchError(error)));
   }
