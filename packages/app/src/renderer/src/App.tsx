@@ -4,16 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { Link, Route, Routes, useParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
@@ -82,94 +73,91 @@ const PullRequestRoute = (): React.JSX.Element => {
   }, []);
 
   return (
-    <Card className={cn("w-full", prData ? "max-w-[min(118rem,calc(100vw-2rem))]" : "max-w-2xl")}>
-      <CardHeader>
-        <CardDescription className="text-xs font-semibold uppercase tracking-widest text-primary">
-          Pull Request
-        </CardDescription>
-        <CardTitle className="text-xl tracking-tight">
-          {owner}/{repo}#{number}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <form className="flex flex-col gap-3" onSubmit={handleFetchSubmit}>
-          <label className="text-sm font-medium" htmlFor="pr-reference">
-            Pull request reference
-          </label>
-          <Input
-            id="pr-reference"
-            onChange={(event) => setPrReference(event.target.value)}
-            placeholder="owner/repo#123"
-            type="text"
-            value={prReference}
-          />
-          <Button className="w-fit" disabled={prStatus === "loading"} type="submit">
-            {prStatus === "loading" ? "Fetching..." : "Fetch PR"}
-          </Button>
-        </form>
-        {prData ? (
-          <div className="grid gap-5 lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
-            <aside
-              className="h-72 min-h-72 overflow-hidden rounded-lg border bg-card lg:h-[calc(100vh-18rem)] lg:min-h-[28rem]"
-              aria-label="Changed files"
-            >
-              <ChangedFileTree
-                files={prData.files}
-                onSelect={handleFileSelect}
-                selectedPath={selectedFilePath}
-              />
-            </aside>
-            <div className="min-w-0">
-              <Card className="mb-5" size="sm">
-                <CardHeader className="border-b">
-                  <CardDescription className="text-xs font-semibold uppercase tracking-widest text-primary">
-                    Fetched PR
-                  </CardDescription>
-                  <CardTitle>{prData.metadata.title}</CardTitle>
-                  <CardDescription>
-                    {prData.metadata.author.login} opened {prData.metadata.reference} with{" "}
-                    {prData.files.length} changed files.
-                  </CardDescription>
-                  <CardAction>
-                    <Button
-                      disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
-                      onClick={handleNarrativeGenerate}
-                      size="sm"
-                      type="button"
-                    >
-                      {narrativeStatus === "loading" || narrativeStatus === "streaming"
-                        ? "Generating narrative..."
-                        : "Generate narrative"}
-                    </Button>
-                  </CardAction>
-                </CardHeader>
-                {narrativeError ? (
-                  <CardContent>
-                    <p className="text-sm text-destructive">{narrativeError}</p>
-                  </CardContent>
-                ) : null}
-              </Card>
-              {narrativeContent ? (
-                <NarrativeView
-                  narrative={narrativeContent}
-                  onFileElement={handleFileElement}
-                  pullRequest={prData}
-                />
-              ) : (
-                <DiffView onFileElement={handleFileElement} pullRequest={prData} />
-              )}
-            </div>
-          </div>
-        ) : null}
-        {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
-        <Link
-          className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          to="/"
+    <div
+      className={
+        prData
+          ? "grid min-h-screen w-full lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]"
+          : "flex w-full max-w-2xl flex-col gap-5 p-4"
+      }
+    >
+      {prData ? (
+        <aside
+          className="sticky top-0 h-screen overflow-hidden border-r bg-card"
+          aria-label="Changed files"
         >
-          Back to pull requests
-        </Link>
-      </CardContent>
-    </Card>
+          <ChangedFileTree
+            files={prData.files}
+            onSelect={handleFileSelect}
+            selectedPath={selectedFilePath}
+          />
+        </aside>
+      ) : null}
+      <div className="min-w-0">
+        <header className="flex flex-col gap-4 border-b bg-background p-4">
+          {prData ? (
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-muted-foreground">
+                  {prData.metadata.reference}
+                </p>
+                <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+                  {prData.metadata.title}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {prData.metadata.author.login} opened this PR with {prData.files.length} changed
+                  files.
+                </p>
+              </div>
+              <Button
+                className="w-fit shrink-0"
+                disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
+                onClick={handleNarrativeGenerate}
+                size="sm"
+                type="button"
+              >
+                {narrativeStatus === "loading" || narrativeStatus === "streaming"
+                  ? "Generating narrative..."
+                  : "Generate narrative"}
+              </Button>
+            </div>
+          ) : null}
+          <form className="flex max-w-2xl flex-col gap-3" onSubmit={handleFetchSubmit}>
+            <label className="text-sm font-medium" htmlFor="pr-reference">
+              Pull request reference
+            </label>
+            <Input
+              id="pr-reference"
+              onChange={(event) => setPrReference(event.target.value)}
+              placeholder="owner/repo#123"
+              type="text"
+              value={prReference}
+            />
+            <Button className="w-fit" disabled={prStatus === "loading"} type="submit">
+              {prStatus === "loading" ? "Fetching..." : "Fetch PR"}
+            </Button>
+          </form>
+          {narrativeError ? <p className="text-sm text-destructive">{narrativeError}</p> : null}
+          {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
+          <Link
+            className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            to="/"
+          >
+            Back to pull requests
+          </Link>
+        </header>
+        {prData ? (
+          narrativeContent ? (
+            <NarrativeView
+              narrative={narrativeContent}
+              onFileElement={handleFileElement}
+              pullRequest={prData}
+            />
+          ) : (
+            <DiffView onFileElement={handleFileElement} pullRequest={prData} />
+          )
+        ) : null}
+      </div>
+    </div>
   );
 };
 
@@ -177,7 +165,7 @@ export const App = (): React.JSX.Element => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   return (
-    <main className="min-h-screen w-full bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
+    <main className="min-h-screen w-full bg-background text-foreground">
       {isAuthenticated ? (
         <Routes>
           <Route element={<PRList />} path="/" />
