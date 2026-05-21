@@ -1,544 +1,184 @@
-import { PatchDiff, WorkerPoolContextProvider, type PatchDiffProps } from "@pierre/diffs/react";
-import { memo, startTransition, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "../../lib/utils";
-import { DIFF_OPTIONS } from "../diff-utils";
-import { buildWalkthroughLayout } from "./walkthrough-parser";
+import { cn } from "@/lib/utils";
 
-type PatchDiffOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
-
-const WALKTHROUGH_DIFF_OPTIONS: PatchDiffOptions = {
-  ...DIFF_OPTIONS,
-  disableFileHeader: true,
-  stickyHeader: false,
-};
-
-const DIFF_WORKER_POOL_OPTIONS = {
-  poolSize: 2,
-  totalASTLRUCacheSize: 200,
-  workerFactory: (): Worker =>
-    new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), { type: "module" }),
-};
-
-const DIFF_HIGHLIGHTER_OPTIONS = {
-  maxLineDiffLength: 1000,
-  theme: DIFF_OPTIONS.theme,
-  tokenizeMaxLineLength: 1000,
-};
+import type { PullRequestData } from "../../store/pr/pr-types";
+import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
+import { FileOverlayPanel } from "./FileOverlayPanel";
+import { FollowUpComposer } from "./FollowUpComposer";
+import { MasonryGroups } from "./MasonryGroups";
+import { DescriptionSkeleton, StepSkeleton } from "./StepSkeleton";
+import { WalkthroughStep } from "./WalkthroughStep";
 
 interface WalkthroughViewProps {
-  onFileClick?: (path: string) => void;
-  showDiffs?: boolean;
-  walkthrough: string;
+  isStreaming: boolean;
+  messages: WalkthroughMessage[];
+  onAskFollowUp: (question: string) => void;
+  onOpenInChanges: (path: string) => void;
+  pullRequest: PullRequestData;
 }
 
 export const WalkthroughView = ({
-  onFileClick,
-  showDiffs = true,
-  walkthrough,
+  isStreaming,
+  messages,
+  onAskFollowUp,
+  onOpenInChanges,
+  pullRequest,
 }: WalkthroughViewProps): React.JSX.Element => {
-  const [visibleDiffCount, setVisibleDiffCount] = useState(0);
-  const layout = useMemo(() => buildWalkthroughLayout(walkthrough), [walkthrough]);
-  const visibleDiffs = useMemo(
-    () => layout.diffs.slice(0, visibleDiffCount),
-    [layout.diffs, visibleDiffCount],
-  );
-  const gridRef = useRef<HTMLDivElement>(null);
-  const proseRef = useRef<HTMLDivElement>(null);
-  const diffContainerRef = useRef<HTMLDivElement>(null);
-  const [anchorLayout, setAnchorLayout] = useState<AnchorLayoutState>({
-    minHeight: 0,
-    positions: {},
-  });
+  const initialMessage = messages.find((message) => message.kind === "initial");
+  const initialResponse = initialMessage?.parsed;
+  const groups = initialResponse?.groups ?? [];
+  const lastMessage = messages[messages.length - 1];
+  const suggestedQuestions = lastMessage?.parsed?.suggestedQuestions ?? [];
+  const allSteps = useMemo(() => collectSteps(messages), [messages]);
+  const [activeStepKey, setActiveStepKey] = useState<null | string>(allSteps[0]?.key ?? null);
+  const [selectedPath, setSelectedPath] = useState<null | string>(null);
+  const [emphasizedRanges, setEmphasizedRanges] = useState<LineRange[]>([]);
+  const stepRefs = useRef(new Map<string, HTMLElement>());
 
   useEffect(() => {
-    setVisibleDiffCount(0);
-
-    if (!showDiffs || layout.diffs.length === 0) {
-      return;
+    if (activeStepKey && !allSteps.some((step) => step.key === activeStepKey)) {
+      setActiveStepKey(allSteps[0]?.key ?? null);
     }
-
-    let isCancelled = false;
-    let count = 0;
-    let frameId: number | undefined;
-    let nextFrameId: number | undefined;
-
-    const showNextDiff = (): void => {
-      if (isCancelled || count >= layout.diffs.length) {
-        return;
-      }
-
-      count += 1;
-      startTransition(() => setVisibleDiffCount(count));
-
-      frameId = requestAnimationFrame(() => {
-        nextFrameId = requestAnimationFrame(showNextDiff);
-      });
-    };
-
-    frameId = requestAnimationFrame(showNextDiff);
-
-    return () => {
-      isCancelled = true;
-      if (frameId !== undefined) cancelAnimationFrame(frameId);
-      if (nextFrameId !== undefined) cancelAnimationFrame(nextFrameId);
-    };
-  }, [layout.diffs, showDiffs]);
-
-  const diffsVisible = visibleDiffs.length > 0;
+  }, [allSteps, activeStepKey]);
 
   useEffect(() => {
-    if (!diffsVisible) {
-      setAnchorLayout({ minHeight: 0, positions: {} });
-    }
-  }, [diffsVisible]);
-
-  useEffect(() => {
-    const gridElement = gridRef.current;
-    const proseElement = proseRef.current;
-    if (!gridElement || !proseElement || !diffsVisible) {
-      return;
-    }
-
-    const measureAnchors = (): void => {
-      const positions = measureDiffPositions(gridElement, proseElement, diffContainerRef.current);
-      setAnchorLayout((previous) =>
-        isSameAnchorLayout(previous, positions) ? previous : positions,
-      );
-    };
-
-    measureAnchors();
-
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measureAnchors);
-    resizeObserver?.observe(proseElement);
-    if (diffContainerRef.current) {
-      resizeObserver?.observe(diffContainerRef.current);
-    }
-    window.addEventListener("resize", measureAnchors);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", measureAnchors);
-    };
-  }, [diffsVisible, layout, visibleDiffs]);
-
-  if (!layout.prose) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Generate a walkthrough to see the guided walkthrough.
-      </p>
+    if (typeof IntersectionObserver === "undefined" || allSteps.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const next = visible[0]?.target as HTMLElement | undefined;
+        const nextKey = next?.dataset.stepKey;
+        if (nextKey) setActiveStepKey(nextKey);
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0 },
     );
-  }
+    for (const [, element] of stepRefs.current) observer.observe(element);
+    return () => observer.disconnect();
+  }, [allSteps]);
+
+  const activeStep = allSteps.find((step) => step.key === activeStepKey);
+  const activeFiles = useMemo<ReadonlySet<string>>(
+    () => new Set((activeStep?.step.relevantFiles ?? []).map((file) => file.path)),
+    [activeStep],
+  );
+  const stepEmphasis = useMemo<Record<string, LineRange[]>>(() => {
+    const map: Record<string, LineRange[]> = {};
+    for (const file of activeStep?.step.relevantFiles ?? []) {
+      if (file.lineRanges?.length) {
+        map[file.path] = (map[file.path] ?? []).concat(file.lineRanges);
+      }
+    }
+    return map;
+  }, [activeStep]);
+
+  const handleRefClick = useCallback((path: string, lineRanges: LineRange[]) => {
+    setSelectedPath(path);
+    setEmphasizedRanges(lineRanges);
+  }, []);
+
+  const registerStep = useCallback((key: string, element: HTMLElement | null) => {
+    if (element) stepRefs.current.set(key, element);
+    else stepRefs.current.delete(key);
+  }, []);
 
   return (
-    <WorkerPoolContextProvider
-      highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
-      poolOptions={DIFF_WORKER_POOL_OPTIONS}
-    >
-      <div
-        className={cn(
-          "relative grid items-start",
-          showDiffs && layout.diffs.length > 0
-            ? "grid-cols-[minmax(0,65ch)_minmax(0,1fr)] gap-8"
-            : "grid-cols-[minmax(0,70ch)]",
-        )}
-        aria-label="Pull request walkthrough"
-        ref={gridRef}
-      >
-        <div ref={proseRef}>
-          <WalkthroughProse markdown={layout.prose} onFileClick={onFileClick} />
+    <div className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+      <div className="flex flex-col gap-6 border-r px-6 py-6">
+        <div aria-label="Walkthrough description" className="flex flex-col gap-2">
+          {initialResponse?.description ? (
+            <p className="font-serif text-lg leading-snug text-foreground">
+              {initialResponse.description}
+            </p>
+          ) : (
+            <DescriptionSkeleton />
+          )}
         </div>
-        {showDiffs && layout.diffs.length > 0 ? (
-          <div
-            className="relative"
-            ref={diffContainerRef}
-            style={{ minHeight: anchorLayout.minHeight }}
-          >
-            {visibleDiffs.map((diff) => {
-              const hasDiff = hasMeaningfulDiffContent(diff.code);
-              if (!hasDiff && !diff.label) {
-                return null;
-              }
-
-              return (
-                <div
-                  className="absolute left-0 right-0 flex flex-col gap-1"
-                  data-diff-id={diff.anchorId}
-                  key={diff.anchorId}
-                  style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
-                >
-                  {diff.label ? (
-                    <p className="text-xs italic text-muted-foreground">{diff.label}</p>
-                  ) : null}
-                  {hasDiff ? <DiffBlock code={diff.code} label={diff.label} /> : null}
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex flex-col gap-6" aria-label="Walkthrough steps">
+          {allSteps.length === 0 && isStreaming ? (
+            <>
+              <StepSkeleton />
+              <StepSkeleton />
+              <StepSkeleton />
+            </>
+          ) : null}
+          {allSteps.map(({ key, message, step }, index) => (
+            <div data-step-key={key} key={key} ref={(element) => registerStep(key, element)}>
+              {message.kind === "follow-up" &&
+              index > 0 &&
+              allSteps[index - 1]?.message.id !== message.id ? (
+                <p className="mb-3 text-xs text-muted-foreground italic">
+                  Follow-up: <span className="not-italic">{message.question}</span>
+                </p>
+              ) : null}
+              <WalkthroughStep
+                index={index}
+                isActive={key === activeStepKey}
+                onRefClick={handleRefClick}
+                step={step}
+              />
+            </div>
+          ))}
+          {isStreaming && allSteps.length > 0 ? <StepSkeleton /> : null}
+        </div>
+        <div className="mt-2">
+          <FollowUpComposer
+            disabled={isStreaming}
+            isStreaming={isStreaming}
+            onSubmit={onAskFollowUp}
+            suggestedQuestions={suggestedQuestions}
+          />
+        </div>
+      </div>
+      <div className={cn("relative px-4 py-6")}>
+        <div className="sticky top-[7rem] max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
+          <MasonryGroups
+            activeFiles={activeFiles}
+            emphasizedRanges={stepEmphasis}
+            files={pullRequest.files}
+            groups={groups}
+            onSelect={setSelectedPath}
+            selectedPath={selectedPath}
+          />
+        </div>
+        {selectedPath ? (
+          <FileOverlayPanel
+            emphasizedRanges={emphasizedRanges}
+            onClose={() => {
+              setSelectedPath(null);
+              setEmphasizedRanges([]);
+            }}
+            onOpenInChanges={() => onOpenInChanges(selectedPath)}
+            pullRequest={pullRequest}
+            selectedPath={selectedPath}
+          />
         ) : null}
       </div>
-    </WorkerPoolContextProvider>
+    </div>
   );
 };
 
-interface AnchorLayoutState {
-  minHeight: number;
-  positions: Record<string, number>;
-}
-
-const DIFF_GAP_PX = 8;
-const FALLBACK_DIFF_HEIGHT_PX = 100;
-
-const measureDiffPositions = (
-  gridElement: HTMLElement,
-  proseElement: HTMLElement,
-  diffContainerElement: HTMLElement | null,
-): AnchorLayoutState => {
-  const gridTop = gridElement.getBoundingClientRect().top;
-  const rawPositions = [...proseElement.querySelectorAll<HTMLElement>("[data-diff-anchor]")].map(
-    (element) => ({
-      id: element.getAttribute("data-diff-anchor") ?? "",
-      top: element.getBoundingClientRect().top - gridTop,
-    }),
-  );
-  const positions: Record<string, number> = {};
-  let lastBottom: number | null = null;
-
-  for (const { id, top } of rawPositions) {
-    if (!id) {
-      continue;
-    }
-    const adjustedTop: number = lastBottom === null ? top : Math.max(top, lastBottom + DIFF_GAP_PX);
-    const diffElement = diffContainerElement?.querySelector<HTMLElement>(`[data-diff-id="${id}"]`);
-    const height = diffElement?.getBoundingClientRect().height ?? FALLBACK_DIFF_HEIGHT_PX;
-    positions[id] = adjustedTop;
-    lastBottom = adjustedTop + height;
+const collectSteps = (
+  messages: WalkthroughMessage[],
+): Array<{
+  key: string;
+  message: WalkthroughMessage;
+  step: WalkthroughMessage["parsed"] extends null
+    ? never
+    : NonNullable<WalkthroughMessage["parsed"]>["steps"][number];
+}> => {
+  const result: Array<{
+    key: string;
+    message: WalkthroughMessage;
+    step: NonNullable<WalkthroughMessage["parsed"]>["steps"][number];
+  }> = [];
+  for (const message of messages) {
+    const steps = message.parsed?.steps ?? [];
+    steps.forEach((step, index) => {
+      result.push({ key: `${message.id}-${index}`, message, step });
+    });
   }
-
-  return {
-    minHeight: Math.max(proseElement.getBoundingClientRect().height, lastBottom ?? 0),
-    positions,
-  };
+  return result;
 };
-
-const isSameAnchorLayout = (current: AnchorLayoutState, next: AnchorLayoutState): boolean => {
-  if (current.minHeight !== next.minHeight) {
-    return false;
-  }
-
-  const currentKeys = Object.keys(current.positions);
-  const nextKeys = Object.keys(next.positions);
-  return (
-    currentKeys.length === nextKeys.length &&
-    nextKeys.every((key) => current.positions[key] === next.positions[key])
-  );
-};
-
-const WalkthroughProse = memo(function WalkthroughProse({
-  markdown,
-  onFileClick,
-}: {
-  markdown: string;
-  onFileClick?: (path: string) => void;
-}): React.JSX.Element {
-  const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
-  let headingIndex = 0;
-
-  return (
-    <article className="flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground">
-      {blocks.map((block, index) => {
-        if (block.type === "diff-anchor") {
-          return (
-            <span className="block h-0" data-diff-anchor={block.anchorId} key={block.anchorId} />
-          );
-        }
-
-        const headingId = block.type === "heading" ? `wt-${headingIndex++}` : undefined;
-
-        return renderMarkdownBlock(block, index, headingId, onFileClick);
-      })}
-    </article>
-  );
-});
-
-type MarkdownBlock =
-  | { level: number; text: string; type: "heading" }
-  | { code: string; language: string; type: "code" }
-  | { type: "hr" }
-  | { anchorId: string; type: "diff-anchor" }
-  | { ordered: boolean; items: string[]; type: "list" }
-  | { text: string; type: "paragraph" };
-
-const parseMarkdown = (markdown: string): MarkdownBlock[] => {
-  const blocks: MarkdownBlock[] = [];
-  const lines = markdown.split("\n");
-  const paragraph: string[] = [];
-  const listItems: string[] = [];
-  let orderedList = false;
-  let codeLines: string[] | null = null;
-  let codeLang = "";
-
-  const flushParagraph = (): void => {
-    if (paragraph.length > 0) {
-      blocks.push({ text: paragraph.join(" "), type: "paragraph" });
-      paragraph.length = 0;
-    }
-  };
-  const flushList = (): void => {
-    if (listItems.length > 0) {
-      blocks.push({ items: [...listItems], ordered: orderedList, type: "list" });
-      listItems.length = 0;
-    }
-  };
-
-  for (const line of lines) {
-    if (line.trim().startsWith("```")) {
-      if (codeLines !== null) {
-        blocks.push({ code: codeLines.join("\n"), language: codeLang, type: "code" });
-        codeLines = null;
-        codeLang = "";
-      } else {
-        flushParagraph();
-        flushList();
-        codeLines = [];
-        codeLang = line.trim().slice(3).trim().toLowerCase();
-      }
-      continue;
-    }
-
-    if (codeLines !== null) {
-      codeLines.push(line);
-      continue;
-    }
-
-    const anchor = line.trim().match(/^<<DIFF_ANCHOR:(.+)>>$/u);
-    const heading = line.match(/^(#{1,4})\s+(.+)$/u);
-    const listItem = line.match(/^(?:[-*]|([0-9]+)[.)])\s+(.+)$/u);
-
-    if (anchor) {
-      flushParagraph();
-      flushList();
-      blocks.push({ anchorId: anchor[1] ?? "", type: "diff-anchor" });
-    } else if (heading) {
-      flushParagraph();
-      flushList();
-      blocks.push({ level: heading[1]?.length ?? 1, text: heading[2] ?? "", type: "heading" });
-    } else if (/^[-*_]{3,}$/u.test(line.trim())) {
-      flushParagraph();
-      flushList();
-      blocks.push({ type: "hr" });
-    } else if (listItem) {
-      flushParagraph();
-      orderedList = Boolean(listItem[1]);
-      listItems.push(listItem[2] ?? "");
-    } else if (line.trim().length === 0) {
-      flushParagraph();
-      flushList();
-    } else {
-      flushList();
-      paragraph.push(line.trim());
-    }
-  }
-
-  flushParagraph();
-  flushList();
-  if (codeLines !== null) {
-    blocks.push({ code: codeLines.join("\n"), language: codeLang, type: "code" });
-  }
-
-  return blocks;
-};
-
-const renderMarkdownBlock = (
-  block: MarkdownBlock,
-  index: number,
-  headingId?: string,
-  onFileClick?: (path: string) => void,
-): ReactNode => {
-  if (block.type === "heading") {
-    return renderHeading(block.level, block.text, index, headingId, onFileClick);
-  }
-
-  if (block.type === "code") {
-    if (block.language === "diff") {
-      return hasMeaningfulDiffContent(block.code) ? (
-        <DiffBlock code={block.code} key={index} />
-      ) : null;
-    }
-
-    return (
-      <pre
-        className="overflow-auto rounded-md border bg-background p-4 text-xs text-foreground"
-        key={index}
-      >
-        <code className="font-mono">{block.code}</code>
-      </pre>
-    );
-  }
-
-  if (block.type === "hr") {
-    return <hr className="border-border" key={index} />;
-  }
-
-  if (block.type === "diff-anchor") {
-    return null;
-  }
-
-  if (block.type === "list") {
-    const ListTag = block.ordered ? "ol" : "ul";
-    return (
-      <ListTag
-        className={cn("flex flex-col gap-1 pl-5", block.ordered ? "list-decimal" : "list-disc")}
-        key={index}
-      >
-        {block.items.map((item) => (
-          <li key={item}>{renderInlineMarkdown(item, onFileClick)}</li>
-        ))}
-      </ListTag>
-    );
-  }
-
-  return <p key={index}>{renderInlineMarkdown(block.text, onFileClick)}</p>;
-};
-
-const renderHeading = (
-  level: number,
-  text: string,
-  key: number,
-  id?: string,
-  onFileClick?: (path: string) => void,
-): ReactNode => {
-  if (level === 1) {
-    return (
-      <h2
-        className="scroll-mt-4 text-xl font-semibold leading-tight text-foreground"
-        id={id}
-        key={key}
-      >
-        {renderInlineMarkdown(text, onFileClick)}
-      </h2>
-    );
-  }
-
-  if (level === 2) {
-    return (
-      <h3
-        className="scroll-mt-4 text-lg font-semibold leading-tight text-foreground"
-        id={id}
-        key={key}
-      >
-        {renderInlineMarkdown(text, onFileClick)}
-      </h3>
-    );
-  }
-
-  return (
-    <h4
-      className="scroll-mt-4 text-base font-semibold leading-tight text-foreground"
-      id={id}
-      key={key}
-    >
-      {renderInlineMarkdown(text, onFileClick)}
-    </h4>
-  );
-};
-
-const DiffBlock = memo(
-  ({ code, label }: { code: string; label?: string }): React.JSX.Element => (
-    <PatchDiff
-      className="block overflow-hidden rounded-md border bg-background text-xs"
-      options={WALKTHROUGH_DIFF_OPTIONS}
-      patch={buildPatchForDiffBlock(code, label)}
-    />
-  ),
-);
-
-export const hasMeaningfulDiffContent = (code: string): boolean =>
-  code.split("\n").some((line) => {
-    const trimmed = line.trim();
-    return (
-      (trimmed.startsWith("+") && !trimmed.startsWith("+++")) ||
-      (trimmed.startsWith("-") && !trimmed.startsWith("---"))
-    );
-  });
-
-const buildPatchForDiffBlock = (code: string, label?: string): string => {
-  const trimmedCode = code.trimEnd();
-  if (/^(?:diff --git |---\s+)/mu.test(trimmedCode)) {
-    return trimmedCode;
-  }
-
-  const fileName = normalizeDiffFileName(label);
-  return [
-    `--- a/${fileName}`,
-    `+++ b/${fileName}`,
-    buildSyntheticHunkHeader(trimmedCode),
-    trimmedCode,
-  ]
-    .filter(Boolean)
-    .join("\n");
-};
-
-const normalizeDiffFileName = (label?: string): string => {
-  const fileName = label?.replace(/^a\//u, "").replace(/^b\//u, "").trim();
-  return fileName && !/\s/u.test(fileName) ? fileName : "walkthrough.diff";
-};
-
-const buildSyntheticHunkHeader = (code: string): string => {
-  const lines = code.length > 0 ? code.split("\n") : [];
-  const deletionLines = lines.filter((line) => line.startsWith("-") && !line.startsWith("---"));
-  const additionLines = lines.filter((line) => line.startsWith("+") && !line.startsWith("+++"));
-  const contextLines = lines.length - deletionLines.length - additionLines.length;
-  const oldLineCount = Math.max(1, deletionLines.length + contextLines);
-  const newLineCount = Math.max(1, additionLines.length + contextLines);
-  return `@@ -1,${oldLineCount} +1,${newLineCount} @@`;
-};
-
-const renderInlineMarkdown = (text: string, onFileClick?: (path: string) => void): ReactNode[] => {
-  const nodes: ReactNode[] = [];
-  const codePattern = /`([^`]+)`/gu;
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(codePattern)) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-
-    const codeText = match[1] ?? "";
-    if (isFilePathReference(codeText)) {
-      nodes.push(
-        <a
-          className="cursor-pointer rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-primary underline-offset-2 hover:underline"
-          href="../diff"
-          key={`${match.index}-${codeText}`}
-          onClick={(event) => {
-            event.preventDefault();
-            onFileClick?.(codeText);
-          }}
-        >
-          {codeText}
-        </a>,
-      );
-    } else {
-      nodes.push(
-        <code
-          className="rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-foreground"
-          key={`${match.index}-${codeText}`}
-        >
-          {codeText}
-        </code>,
-      );
-    }
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-
-  return nodes;
-};
-
-const isFilePathReference = (text: string): boolean =>
-  text.includes("/") || /\.(?:css|go|js|json|jsx|py|rs|ts|tsx)$/u.test(text);

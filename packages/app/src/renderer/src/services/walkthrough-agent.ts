@@ -22,8 +22,15 @@ export interface WalkthroughAgentGroup {
   title: string;
 }
 
+export interface WalkthroughAgentHistoryEntry {
+  question: string;
+  responseJson: string;
+}
+
 export interface WalkthroughAgentRequest {
+  followUpQuestion?: string;
   groups: WalkthroughAgentGroup[];
+  history?: WalkthroughAgentHistoryEntry[];
   metadata: Pick<PullRequestMetadata, "author" | "body" | "labels" | "reference" | "title">;
 }
 
@@ -42,8 +49,11 @@ export const startWalkthroughAgentSession = (
 
 export const buildWalkthroughAgentRequest = (
   pullRequest: PullRequestData,
+  options?: { followUpQuestion?: string; history?: WalkthroughAgentHistoryEntry[] },
 ): WalkthroughAgentRequest => ({
+  followUpQuestion: options?.followUpQuestion,
   groups: groupPullRequestFiles(pullRequest.files),
+  history: options?.history,
   metadata: {
     author: pullRequest.metadata.author,
     body: pullRequest.metadata.body,
@@ -75,9 +85,6 @@ const groupPullRequestFiles = (files: PullRequestFile[]): WalkthroughAgentGroup[
 const getGroupTitle = (filename: string): string => filename.split("/")[0] || "root";
 
 const truncatePatch = (patch: string): string => {
-  if (patch.length <= MAX_PATCH_CHARS) {
-    return patch;
-  }
-
+  if (patch.length <= MAX_PATCH_CHARS) return patch;
   return `${patch.slice(0, MAX_PATCH_CHARS)}\n...diff truncated for walkthrough generation...`;
 };
