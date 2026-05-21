@@ -1,8 +1,12 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 
 import { usePRContext } from "../../routes/pr-context";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
+import type { AppDispatch } from "../../store/store";
+import { selectViewedFilesForPr } from "../../store/viewed-files/viewed-files-selectors";
+import { viewedFilesActions } from "../../store/viewed-files/viewed-files-slice";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS } from "../diff-utils";
 import { parseUnifiedDiff } from "../DiffView/diff-parser";
@@ -113,6 +117,17 @@ export const WalkthroughView = ({
     setEmphasizedRanges(lineRanges);
   }, []);
 
+  const dispatch = useDispatch<AppDispatch>();
+  const prReference = pullRequest.metadata.reference;
+  const viewedPaths = useSelector(selectViewedFilesForPr(prReference));
+  const viewedSet = useMemo(() => new Set(viewedPaths), [viewedPaths]);
+  const handleToggleViewed = useCallback(
+    (path: string, viewed: boolean) => {
+      dispatch(viewedFilesActions.setViewed({ path, prReference, viewed }));
+    },
+    [dispatch, prReference],
+  );
+
   const registerStep = useCallback((key: string, element: HTMLElement | null) => {
     if (element) stepRefs.current.set(key, element);
     else stepRefs.current.delete(key);
@@ -217,11 +232,11 @@ export const WalkthroughView = ({
           {allSteps.map(({ key, message, step }, index) => (
             <Fragment key={key}>
               <div
-                className="scroll-mt-32 px-8 py-6 lg:col-start-1"
+                className="scroll-mt-40 px-8 pt-10 pb-16 lg:col-start-1"
                 data-step-key={key}
                 ref={(element) => registerStep(key, element)}
               >
-                <div className="sticky top-[8.5rem]">
+                <div className="sticky top-[10rem]">
                   {message.kind === "follow-up" &&
                   index > 0 &&
                   allSteps[index - 1]?.message.id !== message.id ? (
@@ -237,14 +252,16 @@ export const WalkthroughView = ({
                   />
                 </div>
               </div>
-              <div className="px-4 py-6 lg:col-start-3">
+              <div className="px-4 pt-10 pb-16 lg:col-start-3">
                 {stepFiles[key] && stepFiles[key].length > 0 ? (
-                  <div aria-label="Files referenced in this step" className="flex flex-col gap-6">
+                  <div aria-label="Files referenced in this step" className="flex flex-col gap-8">
                     {stepFiles[key].map((file) => (
                       <FileDiffPanel
                         file={file}
+                        isViewed={viewedSet.has(file.filename)}
                         key={file.filename}
                         onOpen={setSelectedPath}
+                        onToggleViewed={handleToggleViewed}
                         patch={patchByPath.get(file.filename) ?? ""}
                       />
                     ))}

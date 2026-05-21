@@ -54,7 +54,7 @@ export const FileOverlayPanel = ({
 
   if (!file) {
     return (
-      <OverlayContainer>
+      <OverlayContainer onClose={onClose}>
         <p className="p-4 text-sm text-muted-foreground">File not found in this PR.</p>
       </OverlayContainer>
     );
@@ -66,7 +66,7 @@ export const FileOverlayPanel = ({
     .replace(/\/$/, "");
 
   return (
-    <OverlayContainer>
+    <OverlayContainer onClose={onClose}>
       <header className="flex items-start justify-between gap-4 border-b bg-background px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -114,13 +114,26 @@ export const FileOverlayPanel = ({
   );
 };
 
-const OverlayContainer = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
-  <section
-    aria-label="File diff"
-    className="absolute inset-0 z-20 flex flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
-  >
-    {children}
-  </section>
+interface OverlayContainerProps {
+  children: React.ReactNode;
+  onClose: () => void;
+}
+
+const OverlayContainer = ({ children, onClose }: OverlayContainerProps): React.JSX.Element => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <button
+      aria-label="Close file dialog"
+      className="absolute inset-0 cursor-default bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+      type="button"
+    />
+    <section
+      aria-label="File diff"
+      className="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
+    >
+      {children}
+    </section>
+  </div>
 );
 
 const EmphasisMarkers = ({

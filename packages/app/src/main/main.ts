@@ -9,6 +9,7 @@ import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./nar
 import { loadNarrative, saveNarrative } from "./narrative-storage";
 import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
 import { loadRepoRegistry, saveRepoRegistry, type RepoRegistryData } from "./repo-registry-storage";
+import { loadViewedFiles, saveViewedFiles } from "./viewed-files-storage";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -174,6 +175,25 @@ ipcMain.handle("narrative:load", async (_event, prReference: unknown) => {
   }
 
   return loadNarrative(prReference);
+});
+
+ipcMain.handle("viewed-files:load", async (_event, prReference: unknown) => {
+  if (typeof prReference !== "string") {
+    throw new Error("Invalid viewed-files load request.");
+  }
+
+  return loadViewedFiles(prReference);
+});
+
+ipcMain.handle("viewed-files:save", async (_event, prReference: unknown, paths: unknown) => {
+  if (typeof prReference !== "string" || !Array.isArray(paths)) {
+    throw new Error("Invalid viewed-files save request.");
+  }
+
+  await saveViewedFiles(
+    prReference,
+    paths.filter((value): value is string => typeof value === "string"),
+  );
 });
 
 ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: unknown) => {

@@ -15,6 +15,12 @@ export const DIFF_OPTIONS: PatchDiffOptions = {
   themeType: "system",
 };
 
+export const SNIPPET_DIFF_OPTIONS: PatchDiffOptions = {
+  ...DIFF_OPTIONS,
+  disableFileHeader: true,
+  stickyHeader: false,
+};
+
 export const statusLabel = (status: ParsedDiffFile["status"]): string => {
   const labels: Record<ParsedDiffFile["status"], string> = {
     added: "Added",

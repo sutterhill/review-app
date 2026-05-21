@@ -8,6 +8,7 @@ import { CubeLoader } from "../components/CubeLoader";
 import { selectPrData, selectPrError } from "../store/pr/pr-selectors";
 import { prActions } from "../store/pr/pr-slice";
 import type { AppDispatch } from "../store/store";
+import { viewedFilesActions } from "../store/viewed-files/viewed-files-slice";
 import { selectWalkthroughStatus } from "../store/walkthrough/walkthrough-selectors";
 import { walkthroughActions } from "../store/walkthrough/walkthrough-slice";
 import { PRContext } from "./pr-context";
@@ -43,6 +44,7 @@ export const PRLayout = (): React.JSX.Element => {
   useEffect(() => {
     if (prData) {
       dispatch(walkthroughActions.loadCachedWalkthrough());
+      dispatch(viewedFilesActions.loadViewedFiles({ prReference: prData.metadata.reference }));
     }
   }, [dispatch, prData]);
 

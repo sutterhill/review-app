@@ -123,6 +123,18 @@ contextBridge.exposeInMainWorld("reviewAppWalkthrough", {
   },
 });
 
+contextBridge.exposeInMainWorld("reviewAppViewedFiles", {
+  load: async (prReference: string): Promise<string[]> => {
+    const result = await ipcRenderer.invoke("viewed-files:load", prReference);
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === "string")
+      : [];
+  },
+  save: async (prReference: string, paths: string[]): Promise<void> => {
+    await ipcRenderer.invoke("viewed-files:save", prReference, paths);
+  },
+});
+
 contextBridge.exposeInMainWorld("reviewAppOrchestrator", {
   run: (request: unknown, onEvent: (event: OrchestratorAgentEvent) => void) => {
     const requestId = `orchestrator-${Date.now()}-${orchestratorRequestCount}`;
