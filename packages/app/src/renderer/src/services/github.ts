@@ -164,6 +164,29 @@ export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSumm
   return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
 };
 
+export const fetchMyPullRequestsFromGitHub = async (): Promise<PullRequestSummary[]> => {
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const user = await requestGitHub<GitHubUserResponse>("/user", token);
+
+  if (!user.login) {
+    throw new GitHubApiError("network", "GitHub user profile did not include a login.");
+  }
+
+  const query = encodeURIComponent(`is:pr is:open author:${user.login}`);
+  const search = await requestGitHub<GitHubIssueSearchResponse>(
+    `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
+    token,
+  );
+
+  const summaries = (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
+  return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
+};
+
 const fetchPullRequestSummaryHead = async (
   summary: PullRequestSummary,
   token: string,
