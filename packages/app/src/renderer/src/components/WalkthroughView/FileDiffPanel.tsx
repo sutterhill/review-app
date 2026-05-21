@@ -1,8 +1,6 @@
 import { PatchDiff, type PatchDiffProps } from "@pierre/diffs/react";
 import { useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 import type { PullRequestFile } from "../../store/pr/pr-types";
 import { DIFF_OPTIONS } from "../diff-utils";
 
@@ -48,12 +46,7 @@ export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.E
     <article className="flex flex-col gap-2 rounded-md">
       <FileNameHeader directory={directory} fileName={fileName} file={file} onOpen={onOpen} />
       <div
-        className={cn(
-          "relative overflow-x-auto overflow-y-hidden whitespace-pre rounded-md border border-border/40",
-          !expanded &&
-            overflows &&
-            "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]",
-        )}
+        className="relative overflow-auto whitespace-pre rounded-md border border-border/40"
         style={{
           height: expanded ? totalLines * LINE_HEIGHT_PX + LINE_HEIGHT_PX : collapsedHeight,
         }}
