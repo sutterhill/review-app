@@ -26,6 +26,8 @@ const DIFF_HIGHLIGHTER_OPTIONS = {
   tokenizeMaxLineLength: 1000,
 };
 
+const WIDE_LAYOUT_QUERY = "(min-width: 1024px)";
+
 interface WalkthroughViewProps {
   onFileClick?: (path: string) => void;
   showDiffs?: boolean;
@@ -38,10 +40,22 @@ export const WalkthroughView = ({
   walkthrough,
 }: WalkthroughViewProps): React.JSX.Element => {
   const [visibleDiffCount, setVisibleDiffCount] = useState(0);
+  const [isWideLayout, setIsWideLayout] = useState(() => getIsWideLayout());
   const layout = useMemo(() => buildWalkthroughLayout(walkthrough), [walkthrough]);
   const visibleDiffs = useMemo(
     () => layout.diffs.slice(0, visibleDiffCount),
     [layout.diffs, visibleDiffCount],
+  );
+  const inlineDiffs = useMemo(
+    () =>
+      !isWideLayout && showDiffs
+        ? new Map(
+            visibleDiffs
+              .filter((diff) => hasMeaningfulDiffContent(diff.code) || diff.label)
+              .map((diff) => [diff.anchorId, { code: diff.code, label: diff.label }]),
+          )
+        : undefined,
+    [isWideLayout, showDiffs, visibleDiffs],
   );
   const gridRef = useRef<HTMLDivElement>(null);
   const proseRef = useRef<HTMLDivElement>(null);
@@ -50,6 +64,20 @@ export const WalkthroughView = ({
     minHeight: 0,
     positions: {},
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(WIDE_LAYOUT_QUERY);
+    const handleChange = (event: MediaQueryListEvent): void => setIsWideLayout(event.matches);
+
+    setIsWideLayout(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     setVisibleDiffCount(0);
@@ -85,18 +113,20 @@ export const WalkthroughView = ({
     };
   }, [layout.diffs, showDiffs]);
 
+  const shouldShowDiffs = showDiffs && layout.diffs.length > 0;
   const diffsVisible = visibleDiffs.length > 0;
+  const anchoredDiffsVisible = shouldShowDiffs && isWideLayout && diffsVisible;
 
   useEffect(() => {
-    if (!diffsVisible) {
+    if (!isWideLayout || !diffsVisible) {
       setAnchorLayout({ minHeight: 0, positions: {} });
     }
-  }, [diffsVisible]);
+  }, [diffsVisible, isWideLayout]);
 
   useEffect(() => {
     const gridElement = gridRef.current;
     const proseElement = proseRef.current;
-    if (!gridElement || !proseElement || !diffsVisible) {
+    if (!gridElement || !proseElement || !anchoredDiffsVisible) {
       return;
     }
 
@@ -121,7 +151,7 @@ export const WalkthroughView = ({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", measureAnchors);
     };
-  }, [diffsVisible, layout, visibleDiffs]);
+  }, [anchoredDiffsVisible, layout, visibleDiffs]);
 
   if (!layout.prose) {
     return (
@@ -139,7 +169,7 @@ export const WalkthroughView = ({
       <div
         className={cn(
           "relative grid items-start",
-          showDiffs && layout.diffs.length > 0
+          shouldShowDiffs && isWideLayout
             ? "grid-cols-[minmax(0,65ch)_minmax(0,1fr)] gap-8"
             : "grid-cols-[minmax(0,70ch)]",
         )}
@@ -147,9 +177,13 @@ export const WalkthroughView = ({
         ref={gridRef}
       >
         <div ref={proseRef}>
-          <WalkthroughProse markdown={layout.prose} onFileClick={onFileClick} />
+          <WalkthroughProse
+            inlineDiffs={inlineDiffs}
+            markdown={layout.prose}
+            onFileClick={onFileClick}
+          />
         </div>
-        {showDiffs && layout.diffs.length > 0 ? (
+        {shouldShowDiffs && isWideLayout ? (
           <div
             className="relative"
             ref={diffContainerRef}
@@ -187,8 +221,18 @@ interface AnchorLayoutState {
   positions: Record<string, number>;
 }
 
+interface InlineDiff {
+  code: string;
+  label?: string;
+}
+
 const DIFF_GAP_PX = 8;
 const FALLBACK_DIFF_HEIGHT_PX = 100;
+
+const getIsWideLayout = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(WIDE_LAYOUT_QUERY).matches;
 
 const measureDiffPositions = (
   gridElement: HTMLElement,
@@ -236,9 +280,11 @@ const isSameAnchorLayout = (current: AnchorLayoutState, next: AnchorLayoutState)
 };
 
 const WalkthroughProse = memo(function WalkthroughProse({
+  inlineDiffs,
   markdown,
   onFileClick,
 }: {
+  inlineDiffs?: Map<string, InlineDiff>;
   markdown: string;
   onFileClick?: (path: string) => void;
 }): React.JSX.Element {
@@ -249,6 +295,23 @@ const WalkthroughProse = memo(function WalkthroughProse({
     <article className="flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground">
       {blocks.map((block, index) => {
         if (block.type === "diff-anchor") {
+          const inlineDiff = inlineDiffs?.get(block.anchorId);
+
+          if (inlineDiffs) {
+            const hasDiff = inlineDiff ? hasMeaningfulDiffContent(inlineDiff.code) : false;
+
+            return inlineDiff ? (
+              <div className="flex flex-col gap-1" key={block.anchorId}>
+                {inlineDiff.label ? (
+                  <p className="text-xs italic leading-normal text-muted-foreground">
+                    {inlineDiff.label}
+                  </p>
+                ) : null}
+                {hasDiff ? <DiffBlock code={inlineDiff.code} label={inlineDiff.label} /> : null}
+              </div>
+            ) : null;
+          }
+
           return (
             <span className="block h-0" data-diff-anchor={block.anchorId} key={block.anchorId} />
           );
