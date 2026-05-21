@@ -11,7 +11,7 @@ vi.mock("@pierre/diffs/react", () => ({
   WorkerPoolContextProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
-import { WalkthroughView } from "./WalkthroughView";
+import { WalkthroughView, hasMeaningfulDiffContent } from "./WalkthroughView";
 
 const walkthrough = ["Intro", "```diff", "-old", "+new", "```", "Outro"].join("\n");
 
@@ -34,5 +34,12 @@ describe("WalkthroughView", () => {
     expect(html).toContain("Outro");
     expect(html).not.toContain("-old");
     expect(html).not.toContain("+new");
+  });
+
+  it("detects meaningful diff content", () => {
+    expect(hasMeaningfulDiffContent("")).toBe(false);
+    expect(hasMeaningfulDiffContent("packages/app/src/main.ts")).toBe(false);
+    expect(hasMeaningfulDiffContent("--- a/file.ts\n+++ b/file.ts")).toBe(false);
+    expect(hasMeaningfulDiffContent("--- a/file.ts\n+++ b/file.ts\n-old\n+new")).toBe(true);
   });
 });

@@ -155,19 +155,26 @@ export const WalkthroughView = ({
             ref={diffContainerRef}
             style={{ minHeight: anchorLayout.minHeight }}
           >
-            {visibleDiffs.map((diff) => (
-              <div
-                className="absolute left-0 right-0 flex flex-col gap-1"
-                data-diff-id={diff.anchorId}
-                key={diff.anchorId}
-                style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
-              >
-                {diff.label ? (
-                  <p className="text-xs italic text-muted-foreground">{diff.label}</p>
-                ) : null}
-                <DiffBlock code={diff.code} label={diff.label} />
-              </div>
-            ))}
+            {visibleDiffs.map((diff) => {
+              const hasDiff = hasMeaningfulDiffContent(diff.code);
+              if (!hasDiff && !diff.label) {
+                return null;
+              }
+
+              return (
+                <div
+                  className="absolute left-0 right-0 flex flex-col gap-1"
+                  data-diff-id={diff.anchorId}
+                  key={diff.anchorId}
+                  style={{ top: anchorLayout.positions[diff.anchorId] ?? 0 }}
+                >
+                  {diff.label ? (
+                    <p className="text-xs italic text-muted-foreground">{diff.label}</p>
+                  ) : null}
+                  {hasDiff ? <DiffBlock code={diff.code} label={diff.label} /> : null}
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -355,7 +362,9 @@ const renderMarkdownBlock = (
 
   if (block.type === "code") {
     if (block.language === "diff") {
-      return <DiffBlock code={block.code} key={index} />;
+      return hasMeaningfulDiffContent(block.code) ? (
+        <DiffBlock code={block.code} key={index} />
+      ) : null;
     }
 
     return (
@@ -444,6 +453,15 @@ const DiffBlock = memo(
     />
   ),
 );
+
+export const hasMeaningfulDiffContent = (code: string): boolean =>
+  code.split("\n").some((line) => {
+    const trimmed = line.trim();
+    return (
+      (trimmed.startsWith("+") && !trimmed.startsWith("+++")) ||
+      (trimmed.startsWith("-") && !trimmed.startsWith("---"))
+    );
+  });
 
 const buildPatchForDiffBlock = (code: string, label?: string): string => {
   const trimmedCode = code.trimEnd();
