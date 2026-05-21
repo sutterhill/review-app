@@ -60,8 +60,11 @@ const pullRequestWithFiles = (
   }).concat(additionalFiles),
   metadata: {
     author: { avatarUrl: null, login: "author", url: "https://example.com/author" },
+    baseSha: "base-sha",
     body: "",
     createdAt: "2026-05-21T00:00:00.000Z",
+    headRefName: "feature-branch",
+    headSha: "head-sha",
     htmlUrl: "https://example.com/pr/1",
     labels: [],
     number: 1,

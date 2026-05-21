@@ -30,9 +30,10 @@ interface GitHubLabelResponse {
 }
 
 interface GitHubPullResponse {
+  base?: { sha?: string };
   body?: string | null;
   created_at?: string;
-  head?: { ref?: string };
+  head?: { ref?: string; sha?: string };
   html_url?: string;
   labels?: Array<GitHubLabelResponse | string>;
   number?: number;
@@ -114,7 +115,7 @@ export const fetchPullRequestFromGitHub = async (reference: string): Promise<Pul
   const [pull, files, diff] = await Promise.all([
     requestGitHub<GitHubPullResponse>(pullPath, token),
     fetchPullRequestFiles(pullPath, token),
-    requestGitHubText(pullPath, token, "application/vnd.github.v3.diff"),
+    requestGitHubText(pullPath, token, "application/vnd.github.v3.diff").catch(() => ""),
   ]);
 
   return {
@@ -155,6 +156,29 @@ export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSumm
   }
 
   const query = encodeURIComponent(`is:pr is:open review-requested:${user.login}`);
+  const search = await requestGitHub<GitHubIssueSearchResponse>(
+    `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
+    token,
+  );
+
+  const summaries = (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
+  return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
+};
+
+export const fetchMyPullRequestsFromGitHub = async (): Promise<PullRequestSummary[]> => {
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const user = await requestGitHub<GitHubUserResponse>("/user", token);
+
+  if (!user.login) {
+    throw new GitHubApiError("network", "GitHub user profile did not include a login.");
+  }
+
+  const query = encodeURIComponent(`is:pr is:open author:${user.login}`);
   const search = await requestGitHub<GitHubIssueSearchResponse>(
     `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
     token,
@@ -264,8 +288,11 @@ const toPullRequestMetadata = (
   pull: GitHubPullResponse,
 ): PullRequestMetadata => ({
   author: toGitHubAccount(pull.user),
+  baseSha: pull.base?.sha ?? "",
   body: pull.body ?? "",
   createdAt: pull.created_at ?? "",
+  headRefName: pull.head?.ref ?? "",
+  headSha: pull.head?.sha ?? "",
   htmlUrl: pull.html_url ?? "",
   labels: (pull.labels ?? []).map(toLabelName).filter((label) => label.length > 0),
   number: pull.number ?? pullReference.number,

@@ -2,6 +2,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type {
   PrFetchError,
+  PrListMode,
   PrState,
   PullRequestComment,
   PullRequestData,
@@ -14,9 +15,13 @@ const initialState: PrState = {
   commentsStatus: "idle",
   data: null,
   error: null,
+  myPullRequests: [],
+  myPullRequestsError: null,
+  myPullRequestsStatus: "idle",
   openPullRequests: [],
   openPullRequestsError: null,
   openPullRequestsStatus: "idle",
+  prListMode: "needs-review",
   reference: "",
   status: "idle",
 };
@@ -70,6 +75,22 @@ export const prSlice = createSlice({
       state.openPullRequests = action.payload;
       state.openPullRequestsError = null;
       state.openPullRequestsStatus = "succeeded";
+    },
+    fetchMyPullRequests(state) {
+      state.myPullRequestsError = null;
+      state.myPullRequestsStatus = "loading";
+    },
+    fetchMyPullRequestsFailed(state, action: PayloadAction<PrFetchError>) {
+      state.myPullRequestsError = action.payload;
+      state.myPullRequestsStatus = "failed";
+    },
+    fetchMyPullRequestsSucceeded(state, action: PayloadAction<PullRequestSummary[]>) {
+      state.myPullRequests = action.payload;
+      state.myPullRequestsError = null;
+      state.myPullRequestsStatus = "succeeded";
+    },
+    setPrListMode(state, action: PayloadAction<PrListMode>) {
+      state.prListMode = action.payload;
     },
   },
 });

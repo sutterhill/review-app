@@ -13,3 +13,15 @@ export const locateRepository = async (): Promise<string | null> => {
 
   return window.reviewAppRepos.locate();
 };
+
+export const generateLocalDiff = async (
+  repoPath: string,
+  baseSha: string,
+  headSha: string,
+): Promise<string> => {
+  if (typeof window === "undefined" || !window.reviewAppRepos) {
+    throw new Error("Repository manager API is unavailable.");
+  }
+
+  return window.reviewAppRepos.diff(repoPath, baseSha, headSha);
+};

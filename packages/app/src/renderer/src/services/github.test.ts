@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getGitHubToken } from "./auth";
 import {
   GitHubApiError,
+  fetchMyPullRequestsFromGitHub,
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
@@ -53,8 +54,10 @@ describe("fetchPullRequestFromGitHub", () => {
       }
 
       return jsonResponse({
+        base: { sha: "base-sha" },
         body: "Adds app value.",
         created_at: "2026-05-20T00:00:00.000Z",
+        head: { ref: "feature-branch", sha: "head-sha" },
         html_url: "https://github.com/acme/repo/pull/42",
         labels: [{ name: "feature" }, "review"],
         number: 42,
@@ -70,6 +73,9 @@ describe("fetchPullRequestFromGitHub", () => {
 
     expect(data.metadata).toMatchObject({
       author: { login: "octocat" },
+      baseSha: "base-sha",
+      headRefName: "feature-branch",
+      headSha: "head-sha",
       labels: ["feature", "review"],
       number: 42,
       reference: "acme/repo#42",
@@ -85,6 +91,43 @@ describe("fetchPullRequestFromGitHub", () => {
         headers: expect.objectContaining({ Authorization: "Bearer github-token" }),
       }),
     );
+  });
+
+  it("returns metadata and files with an empty diff when the diff request fails", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url, init) => {
+      const accept = new Headers(init?.headers).get("Accept");
+
+      if (url.endsWith("/files?per_page=100&page=1")) {
+        return jsonResponse([gitHubFile(0)]);
+      }
+
+      if (url.endsWith("/files?per_page=100&page=2")) {
+        return jsonResponse([]);
+      }
+
+      if (accept === "application/vnd.github.v3.diff") {
+        return jsonResponse({ message: "Diff is too large." }, { status: 422 });
+      }
+
+      return jsonResponse({
+        base: { sha: "base-sha" },
+        head: { ref: "feature-branch", sha: "head-sha" },
+        number: 42,
+        title: "Add app value",
+      });
+    });
+
+    await expect(fetchPullRequestFromGitHub("acme/repo#42")).resolves.toMatchObject({
+      diff: "",
+      files: [{ filename: "src/file-0.ts" }],
+      metadata: {
+        baseSha: "base-sha",
+        headRefName: "feature-branch",
+        headSha: "head-sha",
+        number: 42,
+      },
+    });
   });
 });
 
@@ -128,6 +171,44 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         repositoryName: "acme/repo",
         title: "Open change",
         updatedAt: "2026-05-21T00:00:00.000Z",
+      },
+    ]);
+  });
+});
+
+describe("fetchMyPullRequestsFromGitHub", () => {
+  it("fetches open pull request summaries authored by the authenticated user", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/7")) {
+        return jsonResponse({ head: { ref: "my-feature" } });
+      }
+
+      expect(url).toContain("author%3Aoctocat");
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/7",
+            number: 7,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "My change",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+        ],
+      });
+    });
+
+    await expect(fetchMyPullRequestsFromGitHub()).resolves.toMatchObject([
+      {
+        headRefName: "my-feature",
+        number: 7,
+        reference: "acme/repo#7",
+        title: "My change",
       },
     ]);
   });

@@ -6,8 +6,11 @@ export interface GitHubAccount {
 
 export interface PullRequestMetadata {
   author: GitHubAccount;
+  baseSha: string;
   body: string;
   createdAt: string;
+  headRefName: string;
+  headSha: string;
   htmlUrl: string;
   labels: string[];
   number: number;
@@ -74,15 +77,21 @@ export interface PrFetchError {
 
 export type PrRequestStatus = "failed" | "idle" | "loading" | "succeeded";
 
+export type PrListMode = "needs-review" | "mine";
+
 export interface PrState {
   comments: PullRequestComment[];
   commentsError: PrFetchError | null;
   commentsStatus: PrRequestStatus;
   data: PullRequestData | null;
   error: PrFetchError | null;
+  myPullRequests: PullRequestSummary[];
+  myPullRequestsError: PrFetchError | null;
+  myPullRequestsStatus: PrRequestStatus;
   openPullRequests: PullRequestSummary[];
   openPullRequestsError: PrFetchError | null;
   openPullRequestsStatus: PrRequestStatus;
+  prListMode: PrListMode;
   reference: string;
   status: PrRequestStatus;
 }
