@@ -119,8 +119,8 @@ const PullRequestRoute = (): React.JSX.Element => {
           {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
         </header>
         {prData ? (
-          <Tabs className="p-4" defaultValue="diff">
-            <TabsList variant="line">
+          <Tabs defaultValue="diff">
+            <TabsList className="px-4" variant="line">
               <TabsTrigger value="diff">Diff</TabsTrigger>
               <TabsTrigger value="narrative">
                 Narrative
@@ -129,10 +129,10 @@ const PullRequestRoute = (): React.JSX.Element => {
                 ) : null}
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="diff">
+            <TabsContent className="p-4" value="diff">
               <DiffView onFileElement={handleFileElement} pullRequest={prData} />
             </TabsContent>
-            <TabsContent value="narrative">
+            <TabsContent className="p-4" value="narrative">
               {narrativeStatus === "loading" ? (
                 <div className="flex max-w-[70ch] flex-col gap-3" aria-live="polite">
                   <p className="text-sm text-muted-foreground">Generating narrative…</p>
