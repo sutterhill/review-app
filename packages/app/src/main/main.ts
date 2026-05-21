@@ -15,7 +15,7 @@ const execFileAsync = promisify(execFile);
 const GITHUB_REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
 const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
-const GITHUB_OAUTH_CLIENT_ID = "Iv1.b507a08c87ecfe98";
+const GITHUB_OAUTH_CLIENT_ID_ENV = "GITHUB_OAUTH_CLIENT_ID";
 const GITHUB_OAUTH_SCOPE = "repo read:org";
 const GITHUB_TOKEN_FILE = "github-oauth-token";
 
@@ -193,7 +193,7 @@ const getOAuthToken = async (): Promise<string> => {
 
 const startDeviceFlow = async (): Promise<DeviceFlowResponse> => {
   const response = await postGitHubForm(GITHUB_DEVICE_CODE_URL, {
-    client_id: GITHUB_OAUTH_CLIENT_ID,
+    client_id: getGitHubOAuthClientId(),
     scope: GITHUB_OAUTH_SCOPE,
   });
 
@@ -209,7 +209,7 @@ const startDeviceFlow = async (): Promise<DeviceFlowResponse> => {
 
 const pollDeviceFlow = async (deviceCode: string): Promise<DeviceTokenPollResponse> => {
   const response = await postGitHubForm(GITHUB_ACCESS_TOKEN_URL, {
-    client_id: GITHUB_OAUTH_CLIENT_ID,
+    client_id: getGitHubOAuthClientId(),
     device_code: deviceCode,
     grant_type: "urn:ietf:params:oauth:grant-type:device_code",
   });
@@ -285,6 +285,15 @@ const clearOAuthToken = async (): Promise<void> => {
 };
 
 const getOAuthTokenPath = (): string => path.join(app.getPath("userData"), GITHUB_TOKEN_FILE);
+
+const getGitHubOAuthClientId = (): string => {
+  const clientId = process.env[GITHUB_OAUTH_CLIENT_ID_ENV]?.trim();
+  if (!clientId) {
+    throw new Error(`${GITHUB_OAUTH_CLIENT_ID_ENV} must be configured to use GitHub sign-in.`);
+  }
+
+  return clientId;
+};
 
 const postGitHubForm = async (
   url: string,
