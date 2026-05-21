@@ -29,6 +29,7 @@ export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.E
   const directory = file.filename
     .slice(0, file.filename.length - fileName.length)
     .replace(/\/$/, "");
+  const fullPatch = useMemo(() => wrapPatch(file), [file]);
   const totalLines = useMemo(() => countDiffRows(file.patch), [file.patch]);
   const overflows = totalLines > COLLAPSED_LINES;
   const collapsedHeight = COLLAPSED_LINES * LINE_HEIGHT_PX;
@@ -55,7 +56,7 @@ export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.E
         )}
         style={{ maxHeight: expanded ? undefined : collapsedHeight }}
       >
-        <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={file.patch} />
+        <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={fullPatch} />
       </div>
       {overflows ? (
         <button
@@ -102,6 +103,16 @@ const FileNameHeader = ({
     </span>
   </button>
 );
+
+const wrapPatch = (file: PullRequestFile): string => {
+  if (!file.patch) return "";
+  const oldPath = file.previousFilename ?? file.filename;
+  const oldHeader = file.status === "added" ? "--- /dev/null" : `--- a/${oldPath}`;
+  const newHeader = file.status === "deleted" ? "+++ /dev/null" : `+++ b/${file.filename}`;
+  return [`diff --git a/${oldPath} b/${file.filename}`, oldHeader, newHeader, file.patch].join(
+    "\n",
+  );
+};
 
 const countDiffRows = (patch: string): number => {
   if (!patch) return 0;
