@@ -20,6 +20,14 @@ export interface PullRequestMetadata {
   updatedAt: string;
 }
 
+export interface PullRequestComment {
+  author: GitHubAccount;
+  body: string;
+  createdAt: string;
+  id: number;
+  updatedAt: string;
+}
+
 export type PullRequestFileStatus = "added" | "deleted" | "modified" | "renamed";
 
 export interface PullRequestFile {
@@ -67,6 +75,9 @@ export interface PrFetchError {
 export type PrRequestStatus = "failed" | "idle" | "loading" | "succeeded";
 
 export interface PrState {
+  comments: PullRequestComment[];
+  commentsError: PrFetchError | null;
+  commentsStatus: PrRequestStatus;
   data: PullRequestData | null;
   error: PrFetchError | null;
   openPullRequests: PullRequestSummary[];
