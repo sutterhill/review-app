@@ -6,8 +6,11 @@ export interface GitHubAccount {
 
 export interface PullRequestMetadata {
   author: GitHubAccount;
+  baseSha: string;
   body: string;
   createdAt: string;
+  headRefName: string;
+  headSha: string;
   htmlUrl: string;
   labels: string[];
   number: number;
