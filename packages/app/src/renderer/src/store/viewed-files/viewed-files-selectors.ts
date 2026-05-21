@@ -1,11 +1,15 @@
 import type { RootState } from "../store";
 
-const viewedSelectorCache = new Map<string, (state: RootState) => string[]>();
+const EMPTY_VIEWED: readonly string[] = Object.freeze([]);
 
-export const selectViewedFilesForPr = (prReference: string): ((state: RootState) => string[]) => {
+const viewedSelectorCache = new Map<string, (state: RootState) => readonly string[]>();
+
+export const selectViewedFilesForPr = (
+  prReference: string,
+): ((state: RootState) => readonly string[]) => {
   let selector = viewedSelectorCache.get(prReference);
   if (!selector) {
-    selector = (state: RootState) => state.viewedFiles.byReference[prReference] ?? [];
+    selector = (state: RootState) => state.viewedFiles.byReference[prReference] ?? EMPTY_VIEWED;
     viewedSelectorCache.set(prReference, selector);
   }
   return selector;
@@ -14,4 +18,4 @@ export const selectViewedFilesForPr = (prReference: string): ((state: RootState)
 export const selectIsFileViewed =
   (prReference: string, path: string) =>
   (state: RootState): boolean =>
-    (state.viewedFiles.byReference[prReference] ?? []).includes(path);
+    (state.viewedFiles.byReference[prReference] ?? EMPTY_VIEWED).includes(path);
