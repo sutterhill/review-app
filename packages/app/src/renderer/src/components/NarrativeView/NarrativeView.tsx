@@ -1,6 +1,6 @@
 import { PatchDiff } from "@pierre/diffs/react";
-import type { ErrorInfo, ReactNode } from "react";
-import { Component, Fragment, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,25 +16,6 @@ interface NarrativeViewProps {
   narrative: string;
   onFileElement?: (path: string, element: HTMLElement | null) => void;
   pullRequest: PullRequestData;
-}
-
-class PatchDiffErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  override state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  override componentDidCatch(_error: Error, _info: ErrorInfo) {
-    // Silently fall back to plain code rendering.
-  }
-
-  override render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
 }
 
 export const NarrativeView = ({
@@ -193,7 +174,7 @@ const NarrativeMarkdown = ({
 
 type MarkdownBlock =
   | { level: number; text: string; type: "heading" }
-  | { code: string; type: "code" }
+  | { code: string; language: string; type: "code" }
   | { ordered: boolean; items: string[]; type: "list" }
   | { text: string; type: "paragraph" };
 
@@ -204,6 +185,7 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   const listItems: string[] = [];
   let orderedList = false;
   let codeLines: string[] | null = null;
+  let codeLang = "";
 
   const flushParagraph = (): void => {
     if (paragraph.length > 0) {
@@ -221,12 +203,14 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   for (const line of lines) {
     if (line.trim().startsWith("```")) {
       if (codeLines !== null) {
-        blocks.push({ code: codeLines.join("\n"), type: "code" });
+        blocks.push({ code: codeLines.join("\n"), language: codeLang, type: "code" });
         codeLines = null;
+        codeLang = "";
       } else {
         flushParagraph();
         flushList();
         codeLines = [];
+        codeLang = line.trim().slice(3).trim().toLowerCase();
       }
       continue;
     }
@@ -259,19 +243,10 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   flushParagraph();
   flushList();
   if (codeLines !== null) {
-    blocks.push({ code: codeLines.join("\n"), type: "code" });
+    blocks.push({ code: codeLines.join("\n"), language: codeLang, type: "code" });
   }
 
   return blocks;
-};
-
-const looksLikePatch = (code: string): boolean => {
-  const lines = code.split("\n");
-  const hasHunkHeader = lines.some((line) => line.startsWith("@@ "));
-  const hasFileHeaders =
-    lines.some((line) => line.startsWith("--- ")) &&
-    lines.some((line) => line.startsWith("+++ "));
-  return hasHunkHeader && hasFileHeaders;
 };
 
 const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => {
@@ -280,19 +255,25 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
   }
 
   if (block.type === "code") {
-    if (looksLikePatch(block.code)) {
-      const fallback = (
-        <pre className="overflow-auto rounded-md border bg-background p-4 text-xs text-foreground">
-          <code className="font-mono">{block.code}</code>
-        </pre>
-      );
+    if (block.language === "diff") {
+      const lineOccurrences = new Map<string, number>();
 
       return (
-        <PatchDiffErrorBoundary fallback={fallback} key={index}>
-          <div className="overflow-hidden rounded-md border">
-            <PatchDiff disableWorkerPool={true} options={DIFF_OPTIONS} patch={block.code} />
-          </div>
-        </PatchDiffErrorBoundary>
+        <pre className="overflow-auto rounded-md border bg-background p-4 font-mono text-xs" key={index}>
+          {block.code.split("\n").map((line) => {
+            const occurrence = lineOccurrences.get(line) ?? 0;
+            let lineClass = "text-foreground";
+            lineOccurrences.set(line, occurrence + 1);
+            if (line.startsWith("+")) lineClass = "text-green-400";
+            else if (line.startsWith("-")) lineClass = "text-red-400";
+            else if (line.startsWith("@@")) lineClass = "text-blue-400";
+            return (
+              <div key={`${line}-${occurrence}`} className={lineClass}>
+                {line || " "}
+              </div>
+            );
+          })}
+        </pre>
       );
     }
 
