@@ -5,6 +5,7 @@ import { Link, Route, Routes, useParams } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { CubeLoader } from "./components/CubeLoader";
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
 import { Login } from "./components/Login";
@@ -67,61 +68,58 @@ const PullRequestRoute = (): React.JSX.Element => {
     });
   }, []);
 
-  return (
-    <div
-      className={
-        prData
-          ? "grid min-h-screen w-full lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]"
-          : "flex w-full max-w-2xl flex-col gap-5 p-4"
-      }
-    >
-      {prData ? (
-        <aside
-          className="sticky top-0 h-screen overflow-hidden border-r bg-card"
-          aria-label="Changed files"
-        >
-          <ChangedFileTree
-            files={prData.files}
-            onSelect={handleFileSelect}
-            selectedPath={selectedFilePath}
-          />
-        </aside>
-      ) : null}
-      <div className="min-w-0">
-        <header className="flex flex-col gap-4 border-b bg-background p-4">
-          {prData ? (
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-muted-foreground">
-                  {prData.metadata.reference}
-                </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
-                  {prData.metadata.title}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {prData.metadata.author.login} opened this PR with {prData.files.length} changed
-                  files.
-                </p>
-              </div>
-              <Link
-                className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                to="/"
-              >
-                Back to pull requests
-              </Link>
-            </div>
-          ) : (
-            <Link
-              className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              to="/"
-            >
-              Back to pull requests
-            </Link>
-          )}
+  if (!prData) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <header className="flex items-center gap-4 border-b bg-background p-4">
+          <Link
+            className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            to="/"
+          >
+            Back
+          </Link>
           {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
         </header>
-        {prData ? (
-          <Tabs defaultValue="diff">
+        <CubeLoader />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-h-screen w-full lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
+      <aside
+        className="sticky top-0 h-screen overflow-hidden border-r bg-card"
+        aria-label="Changed files"
+      >
+        <ChangedFileTree
+          files={prData.files}
+          onSelect={handleFileSelect}
+          selectedPath={selectedFilePath}
+        />
+      </aside>
+      <div className="min-w-0">
+        <header className="flex flex-col gap-4 border-b bg-background p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-muted-foreground">
+                {prData.metadata.reference}
+              </p>
+              <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+                {prData.metadata.title}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {prData.metadata.author.login} opened this PR with {prData.files.length} changed files.
+              </p>
+            </div>
+            <Link
+              className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              to="/"
+            >
+              Back
+            </Link>
+          </div>
+        </header>
+        <Tabs defaultValue="narrative">
             <TabsList className="w-full border-b px-4" variant="line">
               <TabsTrigger value="diff">Diff</TabsTrigger>
               <TabsTrigger value="narrative">
@@ -131,10 +129,10 @@ const PullRequestRoute = (): React.JSX.Element => {
                 ) : null}
               </TabsTrigger>
             </TabsList>
-            <TabsContent className="p-4" value="diff">
+            <TabsContent className="p-4" keepMounted={false} value="diff">
               <DiffView onFileElement={handleFileElement} pullRequest={prData} />
             </TabsContent>
-            <TabsContent className="p-4" value="narrative">
+            <TabsContent className="p-4" keepMounted={false} value="narrative">
               {narrativeStatus === "loading" ? (
                 <div className="flex max-w-[70ch] flex-col gap-3" aria-live="polite">
                   <p className="text-sm text-muted-foreground">Generating narrative…</p>
@@ -162,8 +160,7 @@ const PullRequestRoute = (): React.JSX.Element => {
                 <p className="text-sm text-destructive">{narrativeError}</p>
               ) : null}
             </TabsContent>
-          </Tabs>
-        ) : null}
+        </Tabs>
       </div>
     </div>
   );
