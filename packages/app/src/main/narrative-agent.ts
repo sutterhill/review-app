@@ -53,15 +53,16 @@ The point is to get to the semantic meaning of what changed and why. Frame the P
 
 Structure the document as:
 
-1. Title line — # <PR title> (<owner>/<repo>#<n>)
-2. One short paragraph TL;DR — what this PR is, in plain language. Include the author and base→head branches as a sub-line.
-3. Body — 3–8 prose sections, each:
+Do not include a title heading, author name, or branch information — these are already displayed in the application UI.
+
+1. One short paragraph TL;DR — what this PR is, in plain language.
+2. Body — 3–8 prose sections, each:
    - Has a descriptive ## heading naming the change, not the file.
    - Opens by describing the prior state / problem this part addresses.
    - Then narrates the fix in prose.
    - Interleaves one or more diff hunks at the moment in the prose where they're being discussed — not bundled at the end of the section.
    - Closes only if there's a non-obvious consequence (a caller that now behaves differently, a contract that shifted, etc.).
-4. What this doesn't change (optional) — a short bullet list of intentionally-skipped trivia so the reviewer knows you saw it.
+3. What this doesn't change (optional) — a short bullet list of intentionally-skipped trivia so the reviewer knows you saw it.
 
 ## Voice and style
 
@@ -187,8 +188,6 @@ const formatNarrativePrompt = ({ groups, metadata }: NarrativeAgentRequest): str
 
   return `Generate a PR narrative walkthrough for ${metadata.reference}.
 
-Title: ${metadata.title}
-Author: ${metadata.author.login}
 Labels: ${metadata.labels.join(", ") || "none"}
 
 PR description:
