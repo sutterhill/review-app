@@ -35,15 +35,15 @@ export const FileMasonryCard = ({
     <button
       aria-label={`Open ${file.filename} diff`}
       className={cn(
-        "group relative flex w-full flex-col gap-2 rounded-md border border-border/60 bg-card p-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-opacity",
-        "hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "group relative flex w-full flex-col gap-2 rounded-md bg-transparent p-1 text-left transition-opacity",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         dimmed && "opacity-50 hover:opacity-100",
       )}
       onClick={() => onClick(file.filename)}
       type="button"
     >
       <FileDiffMinimap active={active} emphasizedRanges={emphasizedRanges} patch={file.patch} />
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-col gap-0.5 px-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span
             aria-hidden="true"

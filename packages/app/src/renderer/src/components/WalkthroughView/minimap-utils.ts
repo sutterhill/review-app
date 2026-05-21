@@ -3,6 +3,7 @@ export interface MinimapSegment {
   id: string;
   kind: "addition" | "context" | "deletion";
   startLine: number;
+  widthRatio: number;
 }
 
 export interface MinimapData {
@@ -13,6 +14,16 @@ export interface MinimapData {
 }
 
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(?<newStart>\d+)(?:,(?<newCount>\d+))? @@/u;
+const MAX_VISUAL_LINE_LENGTH = 80;
+const MIN_WIDTH_RATIO = 0.15;
+const MAX_WIDTH_RATIO = 0.95;
+
+const widthRatioForContent = (content: string): number => {
+  const trimmed = content.replace(/\s+$/u, "");
+  const visible = trimmed.length === 0 ? 1 : trimmed.length;
+  const ratio = Math.min(visible, MAX_VISUAL_LINE_LENGTH) / MAX_VISUAL_LINE_LENGTH;
+  return Math.max(MIN_WIDTH_RATIO, Math.min(MAX_WIDTH_RATIO, ratio));
+};
 
 export const parsePatchForMinimap = (patch: string): MinimapData => {
   if (patch.length === 0) {
@@ -24,33 +35,23 @@ export const parsePatchForMinimap = (patch: string): MinimapData => {
   let maxNewLine = 0;
   let additions = 0;
   let deletions = 0;
-  let pending: MinimapSegment | null = null;
   let inHunk = false;
   let nextSegmentId = 0;
 
-  const flush = (): void => {
-    if (pending) {
-      segments.push(pending);
-      pending = null;
-    }
-  };
-
-  const emit = (kind: MinimapSegment["kind"], line: number): void => {
-    if (pending && pending.kind === kind) {
-      if (kind === "deletion" || pending.startLine + pending.count === line) {
-        pending.count += 1;
-        return;
-      }
-    }
-    flush();
+  const emit = (kind: MinimapSegment["kind"], line: number, content: string): void => {
     nextSegmentId += 1;
-    pending = { count: 1, id: `seg-${nextSegmentId}`, kind, startLine: line };
+    segments.push({
+      count: 1,
+      id: `seg-${nextSegmentId}`,
+      kind,
+      startLine: line,
+      widthRatio: widthRatioForContent(content),
+    });
   };
 
   for (const line of lines) {
     const headerMatch = HUNK_HEADER.exec(line);
     if (headerMatch?.groups) {
-      flush();
       newLineCursor = Number.parseInt(headerMatch.groups.newStart ?? "1", 10);
       const count = Number.parseInt(headerMatch.groups.newCount ?? "0", 10);
       maxNewLine = Math.max(maxNewLine, newLineCursor + count - 1);
@@ -63,7 +64,7 @@ export const parsePatchForMinimap = (patch: string): MinimapData => {
 
     if (line.startsWith("+")) {
       additions += 1;
-      emit("addition", newLineCursor);
+      emit("addition", newLineCursor, line.slice(1));
       maxNewLine = Math.max(maxNewLine, newLineCursor);
       newLineCursor += 1;
       continue;
@@ -71,17 +72,16 @@ export const parsePatchForMinimap = (patch: string): MinimapData => {
 
     if (line.startsWith("-")) {
       deletions += 1;
-      emit("deletion", newLineCursor);
+      emit("deletion", newLineCursor, line.slice(1));
       continue;
     }
 
     if (line.startsWith(" ") || line.length === 0) {
-      emit("context", newLineCursor);
+      emit("context", newLineCursor, line.length === 0 ? "" : line.slice(1));
       maxNewLine = Math.max(maxNewLine, newLineCursor);
       newLineCursor += 1;
     }
   }
-  flush();
 
   return {
     additions,
