@@ -1,10 +1,6 @@
-import type { FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, Route, Routes, useParams } from "react-router";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
@@ -15,10 +11,8 @@ import { selectIsAuthenticated } from "./store/auth/auth-selectors";
 import {
   selectNarrativeContent,
   selectNarrativeError,
-  selectNarrativeStatus,
 } from "./store/narrative/narrative-selectors";
-import { narrativeActions } from "./store/narrative/narrative-slice";
-import { selectPrData, selectPrError, selectPrStatus } from "./store/pr/pr-selectors";
+import { selectPrData, selectPrError } from "./store/pr/pr-selectors";
 import { prActions } from "./store/pr/pr-slice";
 import type { AppDispatch } from "./store/store";
 
@@ -27,18 +21,14 @@ const PullRequestRoute = (): React.JSX.Element => {
   const dispatch = useDispatch<AppDispatch>();
   const prData = useSelector(selectPrData);
   const prError = useSelector(selectPrError);
-  const prStatus = useSelector(selectPrStatus);
   const narrativeContent = useSelector(selectNarrativeContent);
   const narrativeError = useSelector(selectNarrativeError);
-  const narrativeStatus = useSelector(selectNarrativeStatus);
   const routeReference = owner && repo && number ? `${owner}/${repo}#${number}` : "";
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [prReference, setPrReference] = useState(routeReference || "owner/repo#1");
   const fileElements = useRef(new Map<string, HTMLElement>());
 
   useEffect(() => {
     if (routeReference) {
-      setPrReference(routeReference);
       dispatch(prActions.fetchPr(routeReference));
     }
   }, [dispatch, routeReference]);
@@ -46,15 +36,6 @@ const PullRequestRoute = (): React.JSX.Element => {
   useEffect(() => {
     setSelectedFilePath(prData?.files[0]?.filename ?? null);
   }, [prData]);
-
-  const handleFetchSubmit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    dispatch(prActions.fetchPr(prReference));
-  };
-
-  const handleNarrativeGenerate = (): void => {
-    dispatch(narrativeActions.generateNarrative());
-  };
 
   const handleFileElement = useCallback((path: string, element: HTMLElement | null): void => {
     if (element) {
@@ -108,42 +89,23 @@ const PullRequestRoute = (): React.JSX.Element => {
                   files.
                 </p>
               </div>
-              <Button
-                className="w-fit shrink-0"
-                disabled={narrativeStatus === "loading" || narrativeStatus === "streaming"}
-                onClick={handleNarrativeGenerate}
-                size="sm"
-                type="button"
+              <Link
+                className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                to="/"
               >
-                {narrativeStatus === "loading" || narrativeStatus === "streaming"
-                  ? "Generating narrative..."
-                  : "Generate narrative"}
-              </Button>
+                Back to pull requests
+              </Link>
             </div>
-          ) : null}
-          <form className="flex max-w-2xl flex-col gap-3" onSubmit={handleFetchSubmit}>
-            <label className="text-sm font-medium" htmlFor="pr-reference">
-              Pull request reference
-            </label>
-            <Input
-              id="pr-reference"
-              onChange={(event) => setPrReference(event.target.value)}
-              placeholder="owner/repo#123"
-              type="text"
-              value={prReference}
-            />
-            <Button className="w-fit" disabled={prStatus === "loading"} type="submit">
-              {prStatus === "loading" ? "Fetching..." : "Fetch PR"}
-            </Button>
-          </form>
+          ) : (
+            <Link
+              className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              to="/"
+            >
+              Back to pull requests
+            </Link>
+          )}
           {narrativeError ? <p className="text-sm text-destructive">{narrativeError}</p> : null}
           {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
-          <Link
-            className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            to="/"
-          >
-            Back to pull requests
-          </Link>
         </header>
         {prData ? (
           narrativeContent ? (

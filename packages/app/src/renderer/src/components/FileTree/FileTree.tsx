@@ -2,7 +2,6 @@ import type { FileTreeRowDecorationContext, GitStatus } from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import { useEffect, useMemo, useRef } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -71,19 +70,13 @@ export const ChangedFileTree = ({
   }, [model, pathSet, selectedPath]);
 
   return (
-    <ScrollArea className="h-full rounded-lg border bg-background" aria-label="Changed files">
+    <ScrollArea className="h-full border bg-background" aria-label="Changed files">
       <PierreFileTree
         className={cn(
           "h-full text-sm",
           "[--trees-bg-override:var(--background)] [--trees-border-color-override:var(--border)]",
           "[--trees-fg-override:var(--foreground)] [--trees-selected-bg-override:var(--muted)]",
         )}
-        header={
-          <div className="flex items-center justify-between gap-2">
-            <strong className="text-sm font-medium text-foreground">Changed files</strong>
-            <Badge variant="secondary">{files.length}</Badge>
-          </div>
-        }
         model={model}
       />
     </ScrollArea>
