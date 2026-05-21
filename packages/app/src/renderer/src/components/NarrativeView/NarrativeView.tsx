@@ -246,12 +246,28 @@ const parseMarkdown = (markdown: string): MarkdownBlock[] => {
   return blocks;
 };
 
+const looksLikePatch = (code: string): boolean => {
+  const lines = code.split("\n");
+  if (lines.some((line) => line.startsWith("@@ "))) return true;
+  const plusLines = lines.filter((line) => line.startsWith("+")).length;
+  const minusLines = lines.filter((line) => line.startsWith("-")).length;
+  return plusLines >= 2 && minusLines >= 2;
+};
+
 const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => {
   if (block.type === "heading") {
     return renderHeading(block.level, block.text, index);
   }
 
   if (block.type === "code") {
+    if (looksLikePatch(block.code)) {
+      return (
+        <div className="overflow-hidden rounded-md border" key={index}>
+          <PatchDiff disableWorkerPool={true} options={DIFF_OPTIONS} patch={block.code} />
+        </div>
+      );
+    }
+
     return (
       <pre
         className="overflow-auto rounded-md border bg-background p-4 text-xs text-foreground"
