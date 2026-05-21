@@ -1,24 +1,11 @@
-import { PatchDiff, type PatchDiffProps } from "@pierre/diffs/react";
-import { preloadPatchDiff } from "@pierre/diffs/ssr";
+import { PatchDiff } from "@pierre/diffs/react";
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 
 import type { PullRequestData } from "../../store/pr/pr-types";
+import { DIFF_OPTIONS, statusLabel, usePreloadedPatches } from "../diff-utils";
 import { parseUnifiedDiff, type ParsedDiffFile } from "../DiffView";
 import { buildNarrativeSections, shouldCollapseDiffSection } from "./narrative-parser";
-
-type PatchDiffOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
-
-const DIFF_OPTIONS: PatchDiffOptions = {
-  diffIndicators: "classic",
-  diffStyle: "unified",
-  disableLineNumbers: false,
-  hunkSeparators: "line-info",
-  overflow: "wrap",
-  stickyHeader: true,
-  theme: { dark: "github-dark", light: "github-light" },
-  themeType: "system",
-};
 
 interface NarrativeViewProps {
   narrative: string;
@@ -142,37 +129,6 @@ const NarrativeDiffSection = ({
     )}
   </section>
 );
-
-const usePreloadedPatches = (files: ParsedDiffFile[]): Record<string, string> => {
-  const [preloadedHtml, setPreloadedHtml] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let isCancelled = false;
-    const preload = async (): Promise<void> => {
-      const entries = await Promise.all(
-        files
-          .filter((file) => file.patch.length > 0)
-          .map(async (file) => {
-            const result = await preloadPatchDiff({ options: DIFF_OPTIONS, patch: file.patch });
-            return [file.path, result.prerenderedHTML] as const;
-          }),
-      );
-
-      if (!isCancelled) {
-        setPreloadedHtml(Object.fromEntries(entries));
-      }
-    };
-
-    setPreloadedHtml({});
-    preload().catch(() => undefined);
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [files]);
-
-  return preloadedHtml;
-};
 
 const NarrativeMarkdown = ({
   markdown,
@@ -318,14 +274,4 @@ const renderInlineMarkdown = (text: string): ReactNode[] => {
   }
 
   return nodes;
-};
-
-const statusLabel = (status: ParsedDiffFile["status"]): string => {
-  const labels: Record<ParsedDiffFile["status"], string> = {
-    added: "Added",
-    deleted: "Deleted",
-    modified: "Modified",
-    renamed: "Renamed",
-  };
-  return labels[status];
 };

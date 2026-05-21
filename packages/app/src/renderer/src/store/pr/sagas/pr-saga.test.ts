@@ -2,6 +2,7 @@ import { call, put } from "redux-saga/effects";
 import { describe, expect, it } from "vitest";
 
 import {
+  GitHubApiError,
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestFromGitHub,
 } from "../../../services/github";
@@ -56,6 +57,32 @@ describe("prSaga", () => {
     expect(generator.next().value).toEqual(call(fetchOpenPullRequestsFromGitHub));
     expect(generator.next([summary]).value).toEqual(
       put(prActions.fetchOpenPullRequestsSucceeded([summary])),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("surfaces pull request fetch network failures", () => {
+    const generator = fetchPrSaga(prActions.fetchPr("acme/repo#1"));
+
+    expect(generator.next().value).toEqual(call(fetchPullRequestFromGitHub, "acme/repo#1"));
+    expect(generator.throw(new Error("Network offline")).value).toEqual(
+      put(prActions.fetchPrFailed({ code: "network", message: "Network offline" })),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("preserves GitHub API error details", () => {
+    const generator = fetchOpenPullRequestsSaga();
+
+    expect(generator.next().value).toEqual(call(fetchOpenPullRequestsFromGitHub));
+    expect(generator.throw(new GitHubApiError("rate_limited", "Slow down.", 403)).value).toEqual(
+      put(
+        prActions.fetchOpenPullRequestsFailed({
+          code: "rate_limited",
+          message: "Slow down.",
+          status: 403,
+        }),
+      ),
     );
     expect(generator.next().done).toBe(true);
   });

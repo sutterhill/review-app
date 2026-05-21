@@ -96,6 +96,18 @@ describe("generateNarrativeSaga", () => {
     );
     expect(generator.next().done).toBe(true);
   });
+
+  it("surfaces unknown narrative generation failures", () => {
+    const request = buildNarrativeAgentRequest(pullRequest);
+    const generator = generateNarrativeSaga();
+
+    expect(generator.next().value).toEqual(select(selectPrData));
+    expect(generator.next(pullRequest).value).toEqual(call(createNarrativeAgentChannel, request));
+    expect(generator.throw("failed").value).toEqual(
+      put(narrativeActions.generateNarrativeFailed("Narrative generation failed.")),
+    );
+    expect(generator.next().done).toBe(true);
+  });
 });
 
 const createFakeChannel = (): EventChannel<NarrativeAgentEvent> =>

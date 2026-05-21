@@ -10,7 +10,7 @@ import {
 import { prActions } from "../../store/pr/pr-slice";
 import type { PullRequestSummary } from "../../store/pr/pr-types";
 import { selectRepoEntries } from "../../store/repos/repos-selectors";
-import { reposActions } from "../../store/repos/repos-slice";
+import { normalizeRepoKey, reposActions } from "../../store/repos/repos-slice";
 import type { RepoRegistryEntry } from "../../store/repos/repos-types";
 import type { AppDispatch } from "../../store/store";
 
@@ -60,7 +60,7 @@ export const PRList = (): React.JSX.Element => {
               dispatch(reposActions.locateRepo({ fullName: pullRequest.repositoryName }))
             }
             pullRequest={pullRequest}
-            repoEntry={repoEntries[pullRequest.repositoryName.toLowerCase()]}
+            repoEntry={repoEntries[normalizeRepoKey(pullRequest.repositoryName)]}
           />
         ))}
       </div>

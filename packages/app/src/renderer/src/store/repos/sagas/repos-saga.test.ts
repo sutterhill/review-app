@@ -25,4 +25,19 @@ describe("reposSaga", () => {
     );
     expect(generator.next().done).toBe(true);
   });
+
+  it("surfaces clone failures", () => {
+    const generator = cloneRepoSaga(reposActions.cloneRepo({ fullName: "acme/repo" }));
+
+    expect(generator.next().value).toEqual(call(cloneRepository, "acme/repo"));
+    expect(generator.throw(new Error("gh repo clone failed")).value).toEqual(
+      put(
+        reposActions.repoCheckoutFailed({
+          error: "gh repo clone failed",
+          fullName: "acme/repo",
+        }),
+      ),
+    );
+    expect(generator.next().done).toBe(true);
+  });
 });

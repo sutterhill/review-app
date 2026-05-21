@@ -1,6 +1,8 @@
 interface Env {
+  CORS_ORIGIN?: string;
   DB: D1Database;
   GITHUB_TOKEN?: string;
+  REVIEW_APP_API_TOKEN?: string;
 }
 
 interface PrRow {
@@ -21,44 +23,42 @@ interface NarrativeRow {
   generated_at: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization,Content-Type",
-};
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, { status: 204, headers: corsHeaders(env) });
     }
 
     const url = new URL(request.url);
 
     try {
+      if (url.pathname.startsWith("/api/")) {
+        requireApiAuthorization(request, env);
+      }
+
       if (request.method === "POST" && url.pathname === "/api/pr") {
-        return await cachePr(request, env);
+        return withCors(await cachePr(request, env), env);
       }
 
       const prMatch = url.pathname.match(/^\/api\/pr\/([0-9]+)$/);
       if (request.method === "GET" && prMatch) {
-        return await getPr(env, Number(prMatch[1]));
+        return withCors(await getPr(env, Number(prMatch[1])), env);
       }
 
       const narrativeMatch = url.pathname.match(/^\/api\/narrative\/([0-9]+)$/);
       if (request.method === "GET" && narrativeMatch) {
-        return await getNarrative(env, Number(narrativeMatch[1]));
+        return withCors(await getNarrative(env, Number(narrativeMatch[1])), env);
       }
 
       if (request.method === "POST" && url.pathname === "/api/narrative") {
-        return await storeNarrative(request, env);
+        return withCors(await storeNarrative(request, env), env);
       }
 
-      return json({ error: "Not found" }, 404);
+      return withCors(json({ error: "Not found" }, 404), env);
     } catch (error) {
       const message = error instanceof HttpError ? error.message : "Internal server error";
       const status = error instanceof HttpError ? error.status : 500;
-      return json({ error: message }, status);
+      return withCors(json({ error: message }, status), env);
     }
   },
 };
@@ -148,10 +148,11 @@ async function fetchGithubPr(
   request: Request,
   env: Env,
 ): Promise<{ metadata: unknown; diffText: string }> {
-  const token =
-    request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? env.GITHUB_TOKEN;
+  const token = request.headers.get("X-GitHub-Token")?.trim() || env.GITHUB_TOKEN;
   const headers = githubHeaders(token);
-  const baseUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`;
+  const baseUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+    repo,
+  )}/pulls/${encodeURIComponent(String(number))}`;
   const [prResponse, filesResponse, diffResponse] = await Promise.all([
     fetch(baseUrl, { headers }),
     fetch(`${baseUrl}/files`, { headers }),
@@ -266,10 +267,49 @@ function serializeNarrative(row: NarrativeRow | null) {
   };
 }
 
+function requireApiAuthorization(request: Request, env: Env): void {
+  const expectedToken = env.REVIEW_APP_API_TOKEN?.trim();
+  if (!expectedToken) {
+    throw new HttpError(500, "Worker API auth token is not configured");
+  }
+
+  const authorization = request.headers.get("Authorization") ?? "";
+  if (authorization !== `Bearer ${expectedToken}`) {
+    throw new HttpError(401, "Unauthorized");
+  }
+}
+
+function corsHeaders(env: Env): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "Authorization,Content-Type,X-GitHub-Token",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  };
+
+  const origin = env.CORS_ORIGIN?.trim();
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
+  return headers;
+}
+
+function withCors(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(corsHeaders(env))) {
+    headers.set(name, value);
+  }
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
   });
 }
 

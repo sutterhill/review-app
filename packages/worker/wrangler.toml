@@ -2,6 +2,12 @@ name = "review-app-api"
 main = "src/index.ts"
 compatibility_date = "2026-05-20"
 
+[vars]
+CORS_ORIGIN = "http://localhost:5173"
+
+# Required secret for Worker API authentication:
+# pnpm exec wrangler secret put REVIEW_APP_API_TOKEN
+
 [[d1_databases]]
 binding = "DB"
 database_name = "review-app-db"
