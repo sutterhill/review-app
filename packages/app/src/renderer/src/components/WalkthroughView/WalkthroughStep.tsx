@@ -1,17 +1,13 @@
 import { useMemo } from "react";
 
-import type { PullRequestFile } from "../../store/pr/pr-types";
 import type {
   LineRange,
-  WalkthroughFileRef,
   WalkthroughStep as WalkthroughStepData,
 } from "../../store/walkthrough/walkthrough-types";
-import { FileSnippet } from "./FileSnippet";
 import { parseInlineNodes, type InlineNode } from "./inline-refs";
 import { normalizeLineRanges } from "./normalize-line-ranges";
 
 interface WalkthroughStepProps {
-  filesByPath: ReadonlyMap<string, PullRequestFile>;
   index: number;
   isActive: boolean;
   onRefClick: (path: string, lineRanges: LineRange[]) => void;
@@ -19,7 +15,6 @@ interface WalkthroughStepProps {
 }
 
 export const WalkthroughStep = ({
-  filesByPath,
   index,
   onRefClick,
   step,
@@ -41,13 +36,6 @@ export const WalkthroughStep = ({
           <ParagraphRenderer key={paragraph.key} nodes={paragraph.nodes} onRefClick={onRefClick} />
         ))}
       </div>
-      {step.relevantFiles && step.relevantFiles.length > 0 ? (
-        <RelevantFileSnippets
-          files={step.relevantFiles}
-          filesByPath={filesByPath}
-          onRefClick={onRefClick}
-        />
-      ) : null}
     </section>
   );
 };
@@ -103,59 +91,6 @@ const TextSpan = ({ text }: { text: string }): React.JSX.Element => {
       )}
     </>
   );
-};
-
-const RelevantFileSnippets = ({
-  files,
-  filesByPath,
-  onRefClick,
-}: {
-  files: WalkthroughFileRef[];
-  filesByPath: ReadonlyMap<string, PullRequestFile>;
-  onRefClick: (path: string, lineRanges: LineRange[]) => void;
-}): React.JSX.Element => {
-  const items = useMemo(() => buildRelevantItems(files), [files]);
-  return (
-    <ul aria-label="Relevant files for this step" className="flex flex-col gap-4">
-      {items.map((item) => {
-        const file = filesByPath.get(item.path);
-        return (
-          <li key={item.id}>
-            <FileSnippet
-              lineRanges={item.ranges}
-              onClick={() => onRefClick(item.path, item.ranges)}
-              patch={file?.patch ?? ""}
-              path={item.path}
-            />
-          </li>
-        );
-      })}
-    </ul>
-  );
-};
-
-interface RelevantItem {
-  id: string;
-  path: string;
-  ranges: LineRange[];
-}
-
-const buildRelevantItems = (files: WalkthroughFileRef[]): RelevantItem[] => {
-  const used = new Set<string>();
-  const items: RelevantItem[] = [];
-  for (const file of files) {
-    const ranges = normalizeLineRanges(file.lineRanges);
-    const base = `${file.path}#${ranges.map((range) => range.join("-")).join(",")}`;
-    let id = base;
-    let suffix = 1;
-    while (used.has(id)) {
-      suffix += 1;
-      id = `${base}~${suffix}`;
-    }
-    used.add(id);
-    items.push({ id, path: file.path, ranges });
-  }
-  return items;
 };
 
 const splitParagraphs = (body: string): ParagraphData[] => {

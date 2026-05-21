@@ -1,14 +1,13 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePRContext } from "../../routes/pr-context";
-import type { PullRequestData } from "../../store/pr/pr-types";
+import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS } from "../diff-utils";
+import { FileMasonryCard } from "./FileMasonryCard";
 import { FileOverlayPanel } from "./FileOverlayPanel";
 import { FollowUpComposer } from "./FollowUpComposer";
-import { MasonryGroups } from "./MasonryGroups";
-import { normalizeLineRanges } from "./normalize-line-ranges";
 import { DescriptionSkeleton, StepSkeleton } from "./StepSkeleton";
 import { WalkthroughStep } from "./WalkthroughStep";
 import { WalkthroughTOC, type WalkthroughTOCEntry } from "./WalkthroughTOC";
@@ -30,7 +29,6 @@ export const WalkthroughView = ({
 }: WalkthroughViewProps): React.JSX.Element => {
   const initialMessage = messages.find((message) => message.kind === "initial");
   const initialResponse = initialMessage?.parsed;
-  const groups = initialResponse?.groups ?? [];
   const lastMessage = messages[messages.length - 1];
   const suggestedQuestions = lastMessage?.parsed?.suggestedQuestions ?? [];
   const allSteps = useMemo(() => collectSteps(messages), [messages]);
@@ -62,26 +60,42 @@ export const WalkthroughView = ({
     return () => observer.disconnect();
   }, [allSteps]);
 
-  const activeStep = allSteps.find((step) => step.key === activeStepKey);
-  const activeFiles = useMemo<ReadonlySet<string>>(
-    () => new Set((activeStep?.step.relevantFiles ?? []).map((file) => file.path)),
-    [activeStep],
-  );
-  const filesByPath = useMemo<ReadonlyMap<string, (typeof pullRequest.files)[number]>>(() => {
-    const map = new Map<string, (typeof pullRequest.files)[number]>();
+  const filesByPath = useMemo<ReadonlyMap<string, PullRequestFile>>(() => {
+    const map = new Map<string, PullRequestFile>();
     for (const file of pullRequest.files) map.set(file.filename, file);
     return map;
   }, [pullRequest.files]);
-  const stepEmphasis = useMemo<Record<string, LineRange[]>>(() => {
-    const map: Record<string, LineRange[]> = {};
-    for (const file of activeStep?.step.relevantFiles ?? []) {
-      const ranges = normalizeLineRanges(file.lineRanges);
-      if (ranges.length > 0) {
-        map[file.path] = (map[file.path] ?? []).concat(ranges);
+
+  const maxFileLines = useMemo(
+    () =>
+      pullRequest.files.reduce((max, file) => Math.max(max, file.additions + file.deletions), 0),
+    [pullRequest.files],
+  );
+
+  const stepFiles = useMemo<Record<string, PullRequestFile[]>>(() => {
+    const map: Record<string, PullRequestFile[]> = {};
+    for (const { key, step } of allSteps) {
+      const seen = new Set<string>();
+      const list: PullRequestFile[] = [];
+      for (const ref of step.relevantFiles ?? []) {
+        if (seen.has(ref.path)) continue;
+        const file = filesByPath.get(ref.path);
+        if (!file) continue;
+        seen.add(ref.path);
+        list.push(file);
       }
+      map[key] = list;
     }
     return map;
-  }, [activeStep]);
+  }, [allSteps, filesByPath]);
+
+  const unlinkedFiles = useMemo<PullRequestFile[]>(() => {
+    const referenced = new Set<string>();
+    for (const { step } of allSteps) {
+      for (const ref of step.relevantFiles ?? []) referenced.add(ref.path);
+    }
+    return pullRequest.files.filter((file) => !referenced.has(file.filename));
+  }, [allSteps, pullRequest.files]);
 
   const handleRefClick = useCallback((path: string, lineRanges: LineRange[]) => {
     setSelectedPath(path);
@@ -157,36 +171,45 @@ export const WalkthroughView = ({
       highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
       poolOptions={DIFF_WORKER_POOL_OPTIONS}
     >
-      <div
-        className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid"
-        ref={splitContainerRef}
-        style={{
-          gridTemplateColumns: `minmax(0,${leftRatio}fr) 6px minmax(0,${100 - leftRatio}fr)`,
-        }}
-      >
-        <div className="flex flex-col gap-6 border-r px-8 py-8">
-          <div aria-label="Walkthrough description" className="flex flex-col gap-2">
-            {initialResponse?.description ? (
-              <p className="text-[1.02rem] font-light leading-[1.55] text-foreground">
-                {initialResponse.description}
-              </p>
-            ) : (
-              <DescriptionSkeleton />
-            )}
+      <div className="relative">
+        {initialResponse?.description ? (
+          <p className="px-8 pt-8 pb-4 text-[1.02rem] font-light leading-[1.55] text-foreground">
+            {initialResponse.description}
+          </p>
+        ) : (
+          <div className="px-8 pt-8 pb-4">
+            <DescriptionSkeleton />
           </div>
-          <div className="flex flex-col gap-12" aria-label="Walkthrough steps">
-            {allSteps.length === 0 && isStreaming ? (
-              <>
-                <StepSkeleton />
-                <StepSkeleton />
-                <StepSkeleton />
-              </>
-            ) : null}
-            {allSteps.map(({ key, message, step }, index) => (
+        )}
+        <div
+          className="grid grid-cols-1 lg:grid"
+          ref={splitContainerRef}
+          style={{
+            gridTemplateColumns: `minmax(0,${leftRatio}fr) 6px minmax(0,${100 - leftRatio}fr)`,
+          }}
+        >
+          <button
+            aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
+            className="group hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
+            onKeyDown={handleResizeKeyDown}
+            onMouseDown={handleResizeStart}
+            style={{ gridColumn: "2 / 3", gridRow: "1 / -1" }}
+            type="button"
+          >
+            <span className="h-full w-px bg-border transition-colors group-hover:bg-foreground/30" />
+          </button>
+          {allSteps.length === 0 && isStreaming ? (
+            <div className="flex flex-col gap-12 px-8 py-6 lg:col-start-1">
+              <StepSkeleton />
+              <StepSkeleton />
+              <StepSkeleton />
+            </div>
+          ) : null}
+          {allSteps.map(({ key, message, step }, index) => (
+            <Fragment key={key}>
               <div
-                className="scroll-mt-32"
+                className="scroll-mt-32 px-8 py-6 lg:col-start-1"
                 data-step-key={key}
-                key={key}
                 ref={(element) => registerStep(key, element)}
               >
                 {message.kind === "follow-up" &&
@@ -197,58 +220,79 @@ export const WalkthroughView = ({
                   </p>
                 ) : null}
                 <WalkthroughStep
-                  filesByPath={filesByPath}
                   index={index}
                   isActive={key === activeStepKey}
                   onRefClick={handleRefClick}
                   step={step}
                 />
               </div>
-            ))}
-            {isStreaming && allSteps.length > 0 ? <StepSkeleton /> : null}
-          </div>
-          <div className="mt-2">
-            <FollowUpComposer
-              disabled={isStreaming}
-              isStreaming={isStreaming}
-              onSubmit={onAskFollowUp}
-              suggestedQuestions={suggestedQuestions}
-            />
-          </div>
+              <div className="px-4 py-6 lg:col-start-3">
+                {stepFiles[key] && stepFiles[key].length > 0 ? (
+                  <div
+                    aria-label="Files referenced in this step"
+                    className="flex flex-wrap items-start gap-3"
+                  >
+                    {stepFiles[key].map((file) => (
+                      <FileMasonryCard
+                        active={selectedPath === file.filename}
+                        file={file}
+                        key={file.filename}
+                        maxFileLines={maxFileLines}
+                        onClick={setSelectedPath}
+                        relevant
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </Fragment>
+          ))}
+          {isStreaming && allSteps.length > 0 ? (
+            <div className="px-8 py-6 lg:col-start-1">
+              <StepSkeleton />
+            </div>
+          ) : null}
         </div>
-        <button
-          aria-label={`Resize columns (left column ${Math.round(leftRatio)}%)`}
-          className="group hidden cursor-col-resize items-stretch justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
-          onKeyDown={handleResizeKeyDown}
-          onMouseDown={handleResizeStart}
-          type="button"
-        >
-          <span className="h-full w-px bg-border transition-colors group-hover:bg-foreground/30" />
-        </button>
-        <div className="px-4 py-6">
-          <div className="sticky top-[8.5rem] max-h-[calc(100vh-9.5rem)] overflow-y-auto pr-2">
-            <MasonryGroups
-              activeFiles={activeFiles}
-              emphasizedRanges={stepEmphasis}
-              files={pullRequest.files}
-              groups={groups}
-              onSelect={setSelectedPath}
-              selectedPath={selectedPath}
-            />
-            {selectedPath ? (
-              <FileOverlayPanel
-                emphasizedRanges={emphasizedRanges}
-                onClose={() => {
-                  setSelectedPath(null);
-                  setEmphasizedRanges([]);
-                }}
-                onOpenInChanges={() => onOpenInChanges(selectedPath)}
-                pullRequest={pullRequest}
-                selectedPath={selectedPath}
-              />
-            ) : null}
-          </div>
+        {unlinkedFiles.length > 0 ? (
+          <section
+            aria-label="All other files"
+            className="flex flex-col gap-4 border-t border-border/60 px-8 py-8"
+          >
+            <h2 className="text-[0.95rem] font-medium text-foreground">All other</h2>
+            <div className="flex flex-wrap items-start gap-3">
+              {unlinkedFiles.map((file) => (
+                <FileMasonryCard
+                  active={selectedPath === file.filename}
+                  file={file}
+                  key={file.filename}
+                  maxFileLines={maxFileLines}
+                  onClick={setSelectedPath}
+                  relevant={false}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+        <div className="px-8 py-6">
+          <FollowUpComposer
+            disabled={isStreaming}
+            isStreaming={isStreaming}
+            onSubmit={onAskFollowUp}
+            suggestedQuestions={suggestedQuestions}
+          />
         </div>
+        {selectedPath ? (
+          <FileOverlayPanel
+            emphasizedRanges={emphasizedRanges}
+            onClose={() => {
+              setSelectedPath(null);
+              setEmphasizedRanges([]);
+            }}
+            onOpenInChanges={() => onOpenInChanges(selectedPath)}
+            pullRequest={pullRequest}
+            selectedPath={selectedPath}
+          />
+        ) : null}
       </div>
     </WorkerPoolContextProvider>
   );

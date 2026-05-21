@@ -1,7 +1,6 @@
 export { WalkthroughView } from "./WalkthroughView";
 export { FileDiffMinimap } from "./FileDiffMinimap";
 export { FileMasonryCard } from "./FileMasonryCard";
-export { MasonryGroups } from "./MasonryGroups";
 export { FileOverlayPanel } from "./FileOverlayPanel";
 export { WalkthroughStep } from "./WalkthroughStep";
 export { FollowUpComposer } from "./FollowUpComposer";
