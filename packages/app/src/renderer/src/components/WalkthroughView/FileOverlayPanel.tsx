@@ -1,4 +1,4 @@
-import { PatchDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
+import { PatchDiff } from "@pierre/diffs/react";
 import { X } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -9,19 +9,6 @@ import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange } from "../../store/walkthrough/walkthrough-types";
 import { DIFF_OPTIONS, statusBadgeVariant, statusLabel } from "../diff-utils";
 import { parseUnifiedDiff } from "../DiffView/diff-parser";
-
-const DIFF_WORKER_POOL_OPTIONS = {
-  poolSize: 2,
-  totalASTLRUCacheSize: 200,
-  workerFactory: (): Worker =>
-    new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), { type: "module" }),
-};
-
-const DIFF_HIGHLIGHTER_OPTIONS = {
-  maxLineDiffLength: 1000,
-  theme: DIFF_OPTIONS.theme,
-  tokenizeMaxLineLength: 1000,
-};
 
 interface FileOverlayPanelProps {
   emphasizedRanges?: LineRange[];
@@ -115,12 +102,7 @@ export const FileOverlayPanel = ({
       <Separator />
       <div className="flex-1 overflow-auto" ref={containerRef}>
         {parsedFile?.patch ? (
-          <WorkerPoolContextProvider
-            highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
-            poolOptions={DIFF_WORKER_POOL_OPTIONS}
-          >
-            <PatchDiff options={DIFF_OPTIONS} patch={parsedFile.patch} />
-          </WorkerPoolContextProvider>
+          <PatchDiff options={DIFF_OPTIONS} patch={parsedFile.patch} />
         ) : (
           <p className="p-4 text-sm text-muted-foreground">
             No textual diff available for this file.

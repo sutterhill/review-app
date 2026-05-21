@@ -6,20 +6,20 @@ import { FileDiffMinimap } from "./FileDiffMinimap";
 
 interface FileMasonryCardProps {
   active: boolean;
-  dimmed: boolean;
   emphasizedRanges?: LineRange[];
   file: PullRequestFile;
   maxFileLines: number;
   onClick: (path: string) => void;
+  relevant: boolean;
 }
 
 export const FileMasonryCard = ({
   active,
-  dimmed,
   emphasizedRanges,
   file,
   maxFileLines,
   onClick,
+  relevant,
 }: FileMasonryCardProps): React.JSX.Element => {
   const fileName = file.filename.split("/").pop() ?? file.filename;
   const fileLines = file.additions + file.deletions;
@@ -28,10 +28,9 @@ export const FileMasonryCard = ({
     <button
       aria-label={`Open ${file.filename} diff`}
       className={cn(
-        "group relative flex flex-col gap-2 rounded-md bg-transparent p-1 text-left transition-opacity",
+        "group relative flex flex-col gap-2 rounded-md bg-transparent p-1 text-left transition-colors",
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        dimmed && "opacity-40 hover:opacity-100",
-        active && "opacity-100",
+        relevant && "bg-muted/50",
       )}
       onClick={() => onClick(file.filename)}
       style={{ width: 150 }}
@@ -45,7 +44,12 @@ export const FileMasonryCard = ({
         patch={file.patch}
       />
       <div className="flex min-w-0 flex-col gap-0.5 px-1">
-        <span className="min-w-0 truncate text-[0.78rem] font-medium text-foreground">
+        <span
+          className={cn(
+            "min-w-0 truncate text-[0.78rem] font-medium",
+            relevant ? "text-foreground" : "text-foreground/80",
+          )}
+        >
           {fileName}
         </span>
       </div>

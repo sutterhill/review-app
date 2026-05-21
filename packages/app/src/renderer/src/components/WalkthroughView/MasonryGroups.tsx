@@ -40,7 +40,6 @@ export const MasonryGroups = ({
       </div>
     );
   }
-  const hasActive = activeFiles.size > 0;
 
   return (
     <div aria-label="Changed file groups" className="flex flex-wrap items-start gap-4">
@@ -54,14 +53,12 @@ export const MasonryGroups = ({
             {group.files.map((file) => (
               <FileMasonryCard
                 active={selectedPath === file.filename}
-                dimmed={
-                  hasActive && !activeFiles.has(file.filename) && selectedPath !== file.filename
-                }
                 emphasizedRanges={emphasizedRanges[file.filename]}
                 file={file}
                 key={file.filename}
                 maxFileLines={maxFileLines}
                 onClick={onSelect}
+                relevant={activeFiles.has(file.filename)}
               />
             ))}
           </div>

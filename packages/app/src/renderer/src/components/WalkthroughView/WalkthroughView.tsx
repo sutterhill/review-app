@@ -1,8 +1,10 @@
+import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { GitPullRequest } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PullRequestData } from "../../store/pr/pr-types";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
+import { DIFF_OPTIONS } from "../diff-utils";
 import { FileOverlayPanel } from "./FileOverlayPanel";
 import { FollowUpComposer } from "./FollowUpComposer";
 import { MasonryGroups } from "./MasonryGroups";
@@ -91,79 +93,97 @@ export const WalkthroughView = ({
   }, []);
 
   return (
-    <div className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-      <div className="flex flex-col gap-6 border-r px-8 py-8">
-        <PullRequestHeader pullRequest={pullRequest} />
-        <div aria-label="Walkthrough description" className="flex flex-col gap-2">
-          {initialResponse?.description ? (
-            <p className="text-[0.95rem] leading-7 text-foreground">
-              {initialResponse.description}
-            </p>
-          ) : (
-            <DescriptionSkeleton />
-          )}
+    <WorkerPoolContextProvider
+      highlighterOptions={DIFF_HIGHLIGHTER_OPTIONS}
+      poolOptions={DIFF_WORKER_POOL_OPTIONS}
+    >
+      <div className="grid min-h-[calc(100vh-9rem)] grid-cols-1 lg:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+        <div className="flex flex-col gap-6 border-r px-8 py-8">
+          <PullRequestHeader pullRequest={pullRequest} />
+          <div aria-label="Walkthrough description" className="flex flex-col gap-2">
+            {initialResponse?.description ? (
+              <p className="text-[0.95rem] leading-7 text-foreground">
+                {initialResponse.description}
+              </p>
+            ) : (
+              <DescriptionSkeleton />
+            )}
+          </div>
+          <div className="flex flex-col gap-12" aria-label="Walkthrough steps">
+            {allSteps.length === 0 && isStreaming ? (
+              <>
+                <StepSkeleton />
+                <StepSkeleton />
+                <StepSkeleton />
+              </>
+            ) : null}
+            {allSteps.map(({ key, message, step }, index) => (
+              <div data-step-key={key} key={key} ref={(element) => registerStep(key, element)}>
+                {message.kind === "follow-up" &&
+                index > 0 &&
+                allSteps[index - 1]?.message.id !== message.id ? (
+                  <p className="mb-3 text-xs text-muted-foreground italic">
+                    Follow-up: <span className="not-italic">{message.question}</span>
+                  </p>
+                ) : null}
+                <WalkthroughStep
+                  filesByPath={filesByPath}
+                  index={index}
+                  isActive={key === activeStepKey}
+                  onRefClick={handleRefClick}
+                  step={step}
+                />
+              </div>
+            ))}
+            {isStreaming && allSteps.length > 0 ? <StepSkeleton /> : null}
+          </div>
+          <div className="mt-2">
+            <FollowUpComposer
+              disabled={isStreaming}
+              isStreaming={isStreaming}
+              onSubmit={onAskFollowUp}
+              suggestedQuestions={suggestedQuestions}
+            />
+          </div>
         </div>
-        <div className="flex flex-col gap-12" aria-label="Walkthrough steps">
-          {allSteps.length === 0 && isStreaming ? (
-            <>
-              <StepSkeleton />
-              <StepSkeleton />
-              <StepSkeleton />
-            </>
-          ) : null}
-          {allSteps.map(({ key, message, step }, index) => (
-            <div data-step-key={key} key={key} ref={(element) => registerStep(key, element)}>
-              {message.kind === "follow-up" &&
-              index > 0 &&
-              allSteps[index - 1]?.message.id !== message.id ? (
-                <p className="mb-3 text-xs text-muted-foreground italic">
-                  Follow-up: <span className="not-italic">{message.question}</span>
-                </p>
-              ) : null}
-              <WalkthroughStep
-                filesByPath={filesByPath}
-                index={index}
-                isActive={key === activeStepKey}
-                onRefClick={handleRefClick}
-                step={step}
-              />
-            </div>
-          ))}
-          {isStreaming && allSteps.length > 0 ? <StepSkeleton /> : null}
-        </div>
-        <div className="mt-2">
-          <FollowUpComposer
-            disabled={isStreaming}
-            isStreaming={isStreaming}
-            onSubmit={onAskFollowUp}
-            suggestedQuestions={suggestedQuestions}
-          />
-        </div>
-      </div>
-      <div className="relative px-4 py-6">
-        <MasonryGroups
-          activeFiles={activeFiles}
-          emphasizedRanges={stepEmphasis}
-          files={pullRequest.files}
-          groups={groups}
-          onSelect={setSelectedPath}
-          selectedPath={selectedPath}
-        />
-        {selectedPath ? (
-          <FileOverlayPanel
-            emphasizedRanges={emphasizedRanges}
-            onClose={() => {
-              setSelectedPath(null);
-              setEmphasizedRanges([]);
-            }}
-            onOpenInChanges={() => onOpenInChanges(selectedPath)}
-            pullRequest={pullRequest}
+        <div className="relative px-4 py-6">
+          <MasonryGroups
+            activeFiles={activeFiles}
+            emphasizedRanges={stepEmphasis}
+            files={pullRequest.files}
+            groups={groups}
+            onSelect={setSelectedPath}
             selectedPath={selectedPath}
           />
-        ) : null}
+          {selectedPath ? (
+            <FileOverlayPanel
+              emphasizedRanges={emphasizedRanges}
+              onClose={() => {
+                setSelectedPath(null);
+                setEmphasizedRanges([]);
+              }}
+              onOpenInChanges={() => onOpenInChanges(selectedPath)}
+              pullRequest={pullRequest}
+              selectedPath={selectedPath}
+            />
+          ) : null}
+        </div>
       </div>
-    </div>
+    </WorkerPoolContextProvider>
   );
+};
+
+const DIFF_WORKER_POOL_OPTIONS = {
+  poolSize: 2,
+  totalASTLRUCacheSize: 200,
+  workerFactory: (): Worker =>
+    new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), { type: "module" }),
+};
+
+const DIFF_HIGHLIGHTER_OPTIONS = {
+  maxLineDiffLength: 1000,
+  theme: DIFF_OPTIONS.theme,
+  tokenizeMaxLineLength: 1000,
 };
 
 const collectSteps = (
