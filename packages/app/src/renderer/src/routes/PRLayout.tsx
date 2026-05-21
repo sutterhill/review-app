@@ -99,51 +99,53 @@ export const PRLayout = (): React.JSX.Element => {
           </aside>
         ) : null}
         <div className="min-w-0">
-          <header className="flex flex-col gap-4 border-b bg-background p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-muted-foreground">
-                  {prData.metadata.reference}
-                </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
-                  {prData.metadata.title}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {prData.metadata.author.login} opened this PR with {prData.files.length} changed
-                  files.
-                </p>
+          <div className="sticky top-0 z-10 bg-background">
+            <header className="flex flex-col gap-2 border-b px-4 py-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {prData.metadata.reference}
+                  </p>
+                  <h1 className="mt-0.5 text-base font-semibold tracking-tight text-foreground">
+                    {prData.metadata.title}
+                  </h1>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {prData.metadata.author.login} opened this PR with {prData.files.length} changed
+                    files.
+                  </p>
+                </div>
+                <Link
+                  className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  to="/"
+                >
+                  Back
+                </Link>
               </div>
-              <Link
-                className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                to="/"
+            </header>
+            <nav className="flex w-full gap-1 border-b px-4" aria-label="Pull request sections">
+              <NavLink
+                className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
+                to="walkthrough"
               >
-                Back
-              </Link>
-            </div>
-          </header>
-          <nav className="flex w-full gap-1 border-b px-4" aria-label="Pull request sections">
-            <NavLink
-              className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
-              to="walkthrough"
-            >
-              Walkthrough
-              {isWalkthroughGenerating ? (
-                <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-              ) : null}
-            </NavLink>
-            <NavLink
-              className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
-              to="diff"
-            >
-              Changes
-            </NavLink>
-            <NavLink
-              className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
-              to="details"
-            >
-              Details
-            </NavLink>
-          </nav>
+                Walkthrough
+                {isWalkthroughGenerating ? (
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+                ) : null}
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
+                to="diff"
+              >
+                Changes
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => cn(navLinkClasses, isActive && activeNavLinkClasses)}
+                to="details"
+              >
+                Details
+              </NavLink>
+            </nav>
+          </div>
           <Outlet />
         </div>
       </div>
