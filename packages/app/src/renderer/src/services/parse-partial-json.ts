@@ -76,6 +76,7 @@ const trimDanglingValue = (input: string): null | string => {
   let depth = 0;
   let lastBoundary = -1;
   let lastBoundaryChar = "";
+  let lastTopLevelClose = -1;
 
   for (let index = 0; index < input.length; index += 1) {
     const char = input[index] ?? "";
@@ -97,12 +98,20 @@ const trimDanglingValue = (input: string): null | string => {
     }
     if (char === "}" || char === "]") {
       depth -= 1;
+      if (depth === 0) {
+        lastTopLevelClose = index;
+      }
       continue;
     }
     if (char === "," && depth >= 1) {
       lastBoundary = index;
       lastBoundaryChar = char;
     }
+  }
+
+  // If we have a complete top-level structure, trim everything after it
+  if (lastTopLevelClose >= 0 && lastTopLevelClose < input.length - 1) {
+    return input.slice(0, lastTopLevelClose + 1);
   }
 
   if (lastBoundary < 0) return null;

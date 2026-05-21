@@ -123,6 +123,7 @@ export const FileOverlayPanel = ({
       </header>
       <Separator />
       <div className="flex-1 overflow-auto" ref={containerRef}>
+        <EmphasisMarkers file={file} ranges={emphasizedRanges ?? []} />
         {parsedFile?.patch ? (
           <PatchDiff options={DIFF_OPTIONS} patch={parsedFile.patch} />
         ) : (
@@ -131,7 +132,6 @@ export const FileOverlayPanel = ({
           </p>
         )}
       </div>
-      <EmphasisMarkers file={file} ranges={emphasizedRanges ?? []} />
     </OverlayContainer>
   );
 };

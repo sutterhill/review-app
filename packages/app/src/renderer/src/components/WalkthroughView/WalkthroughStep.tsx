@@ -43,8 +43,8 @@ export const WalkthroughStep = ({
         <span>{step.heading}</span>
       </h3>
       <div className="flex flex-col gap-4 text-[1.02rem] font-light leading-[1.55] text-foreground">
-        {blocks.map((block) => (
-          <BlockRenderer block={block} key={blockKey(block)} onRefClick={onRefClick} />
+        {blocks.map((block, blockIndex) => (
+          <BlockRenderer block={block} key={`block-${blockIndex}`} onRefClick={onRefClick} />
         ))}
       </div>
     </section>
@@ -80,8 +80,8 @@ const BlockRenderer = ({
           "marker:text-muted-foreground",
         )}
       >
-        {block.items.map((item) => (
-          <li key={hashString(item)}>
+        {block.items.map((item, itemIndex) => (
+          <li key={`item-${itemIndex}`}>
             <InlineText onRefClick={onRefClick} text={item} />
           </li>
         ))}
@@ -115,7 +115,7 @@ const TableRenderer = ({
           {block.header.map((cell, cellIndex) => (
             <th
               className={cn("border-b border-border px-3 py-2", alignClass(block.align[cellIndex]))}
-              key={`h-${hashString(cell)}`}
+              key={`h-${cellIndex}`}
             >
               <InlineText onRefClick={onRefClick} text={cell} />
             </th>
@@ -123,15 +123,12 @@ const TableRenderer = ({
         </tr>
       </thead>
       <tbody>
-        {block.rows.map((row) => (
-          <tr
-            className="border-b border-border/60 last:border-b-0"
-            key={`r-${hashString(row.join("\u0001"))}`}
-          >
+        {block.rows.map((row, rowIndex) => (
+          <tr className="border-b border-border/60 last:border-b-0" key={`r-${rowIndex}`}>
             {row.map((cell, cellIndex) => (
               <td
                 className={cn("px-3 py-2 align-top", alignClass(block.align[cellIndex]))}
-                key={`c-${hashString(cell)}`}
+                key={`c-${cellIndex}`}
               >
                 <InlineText onRefClick={onRefClick} text={cell} />
               </td>
@@ -200,21 +197,4 @@ const InlineTokenView = ({ token }: { token: InlineToken }): React.JSX.Element =
     return <em>{token.text}</em>;
   }
   return <span>{token.text}</span>;
-};
-
-const blockKey = (block: Block): string => {
-  if (block.type === "paragraph") return `p-${hashString(block.text)}`;
-  if (block.type === "list") return `l-${hashString(block.items.join("\u0001"))}`;
-  if (block.type === "table") {
-    return `t-${hashString(block.header.concat(block.rows.flat()).join("\u0001"))}`;
-  }
-  return `c-${hashString(block.content)}`;
-};
-
-const hashString = (input: string): string => {
-  let hash = 0;
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) | 0;
-  }
-  return hash.toString(36);
 };

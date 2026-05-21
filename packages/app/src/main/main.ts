@@ -22,7 +22,10 @@ const GITHUB_OAUTH_CLIENT_ID_ENV = "GITHUB_OAUTH_CLIENT_ID";
 const GITHUB_OAUTH_SCOPE = "repo read:org";
 const GITHUB_TOKEN_FILE = "github-oauth-token";
 
-loadDotEnvFiles([".env.local", ".env"]);
+// Only load .env files in development to avoid picking up unrelated config in production
+if (!app.isPackaged) {
+  loadDotEnvFiles([".env.local", ".env"]);
+}
 
 function loadDotEnvFiles(filenames: string[]): void {
   let dir = process.cwd();
