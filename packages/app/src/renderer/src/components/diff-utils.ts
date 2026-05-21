@@ -17,8 +17,8 @@ export const DIFF_OPTIONS: PatchDiffOptions = {
 
 export const SNIPPET_DIFF_OPTIONS: PatchDiffOptions = {
   ...DIFF_OPTIONS,
-  disableFileHeader: true,
   stickyHeader: false,
+  unsafeCSS: "[data-diffs-header]{display:none!important}",
 };
 
 export const statusLabel = (status: ParsedDiffFile["status"]): string => {
