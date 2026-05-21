@@ -54,7 +54,9 @@ export const FileDiffPanel = ({ file, onOpen }: FileDiffPanelProps): React.JSX.E
             overflows &&
             "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]",
         )}
-        style={{ maxHeight: expanded ? undefined : collapsedHeight }}
+        style={{
+          height: expanded ? totalLines * LINE_HEIGHT_PX + LINE_HEIGHT_PX : collapsedHeight,
+        }}
       >
         <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={fullPatch} />
       </div>
