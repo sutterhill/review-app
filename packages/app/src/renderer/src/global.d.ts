@@ -33,6 +33,8 @@ declare global {
         request: NarrativeAgentRequest,
         onEvent: (event: NarrativeAgentEvent) => void,
       ) => NarrativeAgentController;
+      save: (prReference: string, content: string) => Promise<void>;
+      load: (prReference: string) => Promise<string | null>;
     };
     reviewAppOrchestrator: {
       run: (

@@ -32,4 +32,26 @@ describe("narrativeReducer", () => {
     expect(state.error).toBe("No PR");
     expect(state.status).toBe("failed");
   });
+
+  it("marks cached narrative loading", () => {
+    const state = narrativeReducer(undefined, narrativeActions.loadCachedNarrative());
+
+    expect(state).toEqual({ content: "", error: null, status: "loading" });
+  });
+
+  it("loads cached narrative content", () => {
+    const state = narrativeReducer(
+      undefined,
+      narrativeActions.loadCachedNarrativeSucceeded("Cached narrative"),
+    );
+
+    expect(state).toEqual({ content: "Cached narrative", error: null, status: "succeeded" });
+  });
+
+  it("returns to idle when cached narrative is missing", () => {
+    const loading = narrativeReducer(undefined, narrativeActions.loadCachedNarrative());
+    const state = narrativeReducer(loading, narrativeActions.loadCachedNarrativeNotFound());
+
+    expect(state).toEqual({ content: "", error: null, status: "idle" });
+  });
 });

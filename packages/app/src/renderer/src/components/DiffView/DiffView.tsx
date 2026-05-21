@@ -32,7 +32,7 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
     <div className="flex flex-col gap-4" aria-label="Pull request diff">
       {files.map((file) => (
         <section
-          className="scroll-mt-4 overflow-hidden rounded-lg border bg-background"
+          className="scroll-mt-4 overflow-hidden border bg-background"
           data-change-status={file.status}
           key={file.path}
           ref={(element) => onFileElement(file.path, element)}

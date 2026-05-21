@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 
 import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
+import { loadNarrative, saveNarrative } from "./narrative-storage";
 import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -85,6 +86,22 @@ ipcMain.handle("narrative:abort", async (_event, requestId: unknown) => {
   if (typeof requestId === "string") {
     await abortNarrativeAgentSession(requestId);
   }
+});
+
+ipcMain.handle("narrative:save", async (_event, prReference: unknown, content: unknown) => {
+  if (typeof prReference !== "string" || typeof content !== "string") {
+    throw new Error("Invalid narrative save request.");
+  }
+
+  await saveNarrative(prReference, content);
+});
+
+ipcMain.handle("narrative:load", async (_event, prReference: unknown) => {
+  if (typeof prReference !== "string") {
+    throw new Error("Invalid narrative load request.");
+  }
+
+  return loadNarrative(prReference);
 });
 
 ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: unknown) => {

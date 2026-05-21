@@ -100,6 +100,13 @@ contextBridge.exposeInMainWorld("reviewAppNarrative", {
       },
     };
   },
+  save: async (prReference: string, content: string): Promise<void> => {
+    await ipcRenderer.invoke("narrative:save", prReference, content);
+  },
+  load: async (prReference: string): Promise<string | null> => {
+    const result = await ipcRenderer.invoke("narrative:load", prReference);
+    return typeof result === "string" ? result : null;
+  },
 });
 
 contextBridge.exposeInMainWorld("reviewAppOrchestrator", {

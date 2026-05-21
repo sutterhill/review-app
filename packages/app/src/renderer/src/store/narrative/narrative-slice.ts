@@ -30,6 +30,19 @@ export const narrativeSlice = createSlice({
       state.error = null;
       state.status = "succeeded";
     },
+    loadCachedNarrative(state) {
+      state.error = null;
+      state.status = "loading";
+    },
+    loadCachedNarrativeNotFound(state) {
+      state.error = null;
+      state.status = "idle";
+    },
+    loadCachedNarrativeSucceeded(state, action: PayloadAction<string>) {
+      state.content = action.payload;
+      state.error = null;
+      state.status = "succeeded";
+    },
     resetNarrative(state) {
       state.content = "";
       state.error = null;
