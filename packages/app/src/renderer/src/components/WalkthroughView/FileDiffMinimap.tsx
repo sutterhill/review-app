@@ -6,90 +6,94 @@ import type { LineRange } from "../../store/walkthrough/walkthrough-types";
 import { overlapsRanges, parsePatchForMinimap, type MinimapSegment } from "./minimap-utils";
 
 interface FileDiffMinimapProps {
+  active?: boolean;
   emphasizedRanges?: LineRange[];
   height?: number;
   patch: string;
 }
 
-const SEGMENT_GAP_PX = 1;
-const MIN_SEGMENT_HEIGHT_PX = 2;
+const MIN_BAR_HEIGHT_PX = 6;
 
 export const FileDiffMinimap = ({
+  active = false,
   emphasizedRanges,
-  height = 88,
+  height = 150,
   patch,
 }: FileDiffMinimapProps): React.JSX.Element => {
   const data = useMemo(() => parsePatchForMinimap(patch), [patch]);
   const hasEmphasis = !!emphasizedRanges && emphasizedRanges.length > 0;
 
-  if (data.segments.length === 0) {
-    return (
-      <div
-        aria-label="No diff content"
-        className="flex items-center justify-center rounded-sm bg-muted/50 text-[0.6rem] text-muted-foreground"
-        style={{ height }}
-      >
-        no diff
-      </div>
-    );
-  }
-
   return (
     <div
-      aria-label={`Diff minimap: +${data.additions} -${data.deletions}`}
-      className="relative flex flex-col gap-px"
+      aria-label={
+        data.segments.length === 0
+          ? "No diff content"
+          : `Diff minimap: +${data.additions} -${data.deletions}`
+      }
+      className={cn(
+        "relative w-full overflow-hidden rounded-[3px] bg-muted/30 transition-colors",
+        active && "ring-[2.5px] ring-foreground ring-inset",
+      )}
       style={{ height }}
     >
-      {data.segments.map((segment) => (
-        <MinimapSegmentBar
-          emphasized={hasEmphasis && overlapsRanges(segment, emphasizedRanges ?? [])}
-          key={segment.id}
-          segment={segment}
-          totalLines={data.newLineCount}
-          totalSegments={data.segments.length}
-        />
-      ))}
+      {data.segments.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-[0.6rem] text-muted-foreground">
+          no diff
+        </div>
+      ) : (
+        data.segments
+          .filter((segment) => segment.kind !== "context")
+          .map((segment) => (
+            <MinimapSegmentBar
+              emphasized={hasEmphasis && overlapsRanges(segment, emphasizedRanges ?? [])}
+              key={segment.id}
+              minHeightPx={MIN_BAR_HEIGHT_PX}
+              segment={segment}
+              totalHeightPx={height}
+              totalLines={data.newLineCount}
+            />
+          ))
+      )}
     </div>
   );
 };
 
 interface MinimapSegmentBarProps {
   emphasized: boolean;
+  minHeightPx: number;
   segment: MinimapSegment;
+  totalHeightPx: number;
   totalLines: number;
-  totalSegments: number;
 }
 
 const MinimapSegmentBar = ({
   emphasized,
+  minHeightPx,
   segment,
+  totalHeightPx,
   totalLines,
-  totalSegments,
 }: MinimapSegmentBarProps): React.JSX.Element => {
-  const proportion = segment.count / Math.max(totalLines, 1);
-  const flexGrow = Math.max(proportion, 1 / Math.max(totalSegments * 4, 8));
-  const isContext = segment.kind === "context";
+  const denom = Math.max(totalLines, 1);
+  const topPx = (Math.max(segment.startLine - 1, 0) / denom) * totalHeightPx;
+  const rawHeightPx = (Math.max(segment.count, 1) / denom) * totalHeightPx;
+  const heightPx = Math.max(rawHeightPx, minHeightPx);
+  const clampedTopPx = Math.min(topPx, Math.max(totalHeightPx - heightPx, 0));
   const colorClass =
     segment.kind === "addition"
-      ? "bg-emerald-500/80 dark:bg-emerald-400/70"
-      : segment.kind === "deletion"
-        ? "bg-rose-500/80 dark:bg-rose-400/70"
-        : "bg-muted-foreground/20";
+      ? "bg-emerald-400 dark:bg-emerald-400/80"
+      : "bg-rose-300 dark:bg-rose-400/70";
 
   return (
     <div
       aria-hidden="true"
       className={cn(
-        "w-full rounded-[1.5px] transition-opacity",
+        "absolute inset-x-0",
         colorClass,
-        isContext ? "opacity-60" : "opacity-100",
         emphasized && "ring-1 ring-primary ring-offset-1 ring-offset-background",
       )}
       style={{
-        flexGrow,
-        flexShrink: 0,
-        marginBottom: SEGMENT_GAP_PX,
-        minHeight: MIN_SEGMENT_HEIGHT_PX,
+        height: `${heightPx}px`,
+        top: `${clampedTopPx}px`,
       }}
     />
   );
