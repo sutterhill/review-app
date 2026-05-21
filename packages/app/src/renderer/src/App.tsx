@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, Route, Routes, useParams } from "react-router";
 
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { DiffView } from "./components/DiffView";
 import { ChangedFileTree } from "./components/FileTree";
 import { Login } from "./components/Login";
 import { NarrativeView } from "./components/NarrativeView";
 import { PRList } from "./components/PRList";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { selectIsAuthenticated } from "./store/auth/auth-selectors";
 import {
   selectNarrativeContent,
@@ -120,7 +121,7 @@ const PullRequestRoute = (): React.JSX.Element => {
         </header>
         {prData ? (
           <Tabs defaultValue="diff">
-            <TabsList className="px-4" variant="line">
+            <TabsList className="w-full border-b px-4" variant="line">
               <TabsTrigger value="diff">Diff</TabsTrigger>
               <TabsTrigger value="narrative">
                 Narrative
