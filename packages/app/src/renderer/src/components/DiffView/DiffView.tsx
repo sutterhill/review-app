@@ -1,5 +1,5 @@
 import { PatchDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,8 @@ const DIFF_HIGHLIGHTER_OPTIONS = {
   theme: DIFF_OPTIONS.theme,
   tokenizeMaxLineLength: 1000,
 };
+
+const EAGER_DIFF_FILE_COUNT = 3;
 
 interface DiffViewProps {
   onFileElement(path: string, element: HTMLElement | null): void;
@@ -46,28 +48,90 @@ export const DiffView = ({ onFileElement, pullRequest }: DiffViewProps): React.J
       poolOptions={DIFF_WORKER_POOL_OPTIONS}
     >
       <div className="flex flex-col gap-4" aria-label="Pull request diff">
-        {files.map((file) => (
-          <section
-            className="scroll-mt-4 overflow-hidden border bg-background"
-            data-change-status={file.status}
+        {files.map((file, index) => (
+          <LazyDiffFile
+            eager={index < EAGER_DIFF_FILE_COUNT}
+            file={file}
             key={file.path}
-            ref={(element) => onFileElement(file.path, element)}
-          >
-            <DiffFileHeader file={file} />
-            <Separator />
-            {file.patch ? (
-              <PatchDiff options={DIFF_OPTIONS} patch={file.patch} />
-            ) : (
-              <p className="p-4 text-sm text-muted-foreground">
-                No textual diff is available for this file.
-              </p>
-            )}
-          </section>
+            onFileElement={onFileElement}
+          />
         ))}
       </div>
     </WorkerPoolContextProvider>
   );
 };
+
+interface LazyDiffFileProps {
+  eager?: boolean;
+  file: ParsedDiffFile;
+  onFileElement(path: string, element: HTMLElement | null): void;
+}
+
+const LazyDiffFile = memo(
+  ({ eager = false, file, onFileElement }: LazyDiffFileProps): React.JSX.Element => {
+    const sectionRef = useRef<HTMLElement | null>(null);
+    const [isVisible, setIsVisible] = useState(eager);
+
+    useEffect(() => {
+      if (eager || isVisible || !file.patch) {
+        return;
+      }
+
+      const element = sectionRef.current;
+      if (!element) {
+        return;
+      }
+
+      if (typeof IntersectionObserver === "undefined") {
+        setIsVisible(true);
+        return;
+      }
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry?.isIntersecting) {
+            setIsVisible(true);
+            observer.disconnect();
+          }
+        },
+        { rootMargin: "200px 0px" },
+      );
+
+      observer.observe(element);
+      return () => observer.disconnect();
+    }, [eager, file.patch, isVisible]);
+
+    const setSectionElement = useCallback(
+      (element: HTMLElement | null) => {
+        sectionRef.current = element;
+        onFileElement(file.path, element);
+      },
+      [file.path, onFileElement],
+    );
+
+    return (
+      <section
+        className="scroll-mt-4 overflow-hidden border bg-background"
+        data-change-status={file.status}
+        ref={setSectionElement}
+      >
+        <DiffFileHeader file={file} />
+        <Separator />
+        {isVisible && file.patch ? (
+          <PatchDiff options={DIFF_OPTIONS} patch={file.patch} />
+        ) : file.patch ? (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Loading diff…
+          </div>
+        ) : (
+          <p className="p-4 text-sm text-muted-foreground">
+            No textual diff is available for this file.
+          </p>
+        )}
+      </section>
+    );
+  },
+);
 
 const DiffFileHeader = ({ file }: { file: ParsedDiffFile }): React.JSX.Element => (
   <header className="flex items-center justify-between gap-4 bg-muted px-4 py-3">
