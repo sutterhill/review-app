@@ -71,15 +71,17 @@ export const PRLayout = (): React.JSX.Element => {
   if (!prData) {
     return (
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center gap-4 border-b bg-background p-4">
-          <Link
-            className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            to="/"
-          >
-            Back
-          </Link>
-          {prError ? <p className="text-sm text-destructive">{prError.message}</p> : null}
-        </header>
+        {prError ? (
+          <header className="flex items-center gap-4 border-b bg-background p-4">
+            <Link
+              className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              to="/"
+            >
+              Back
+            </Link>
+            <p className="text-sm text-destructive">{prError.message}</p>
+          </header>
+        ) : null}
         <CubeLoader />
       </div>
     );
