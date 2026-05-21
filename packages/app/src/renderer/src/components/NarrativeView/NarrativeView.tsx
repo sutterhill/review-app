@@ -2,8 +2,13 @@ import { PatchDiff } from "@pierre/diffs/react";
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
 import type { PullRequestData } from "../../store/pr/pr-types";
-import { DIFF_OPTIONS, statusLabel, usePreloadedPatches } from "../diff-utils";
+import { DIFF_OPTIONS, statusBadgeVariant, statusLabel, usePreloadedPatches } from "../diff-utils";
 import { parseUnifiedDiff, type ParsedDiffFile } from "../DiffView";
 import { buildNarrativeSections, shouldCollapseDiffSection } from "./narrative-parser";
 
@@ -40,11 +45,15 @@ export const NarrativeView = ({
   };
 
   if (sections.length === 0) {
-    return <p className="empty-state">Generate a narrative to see the guided walkthrough.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Generate a narrative to see the guided walkthrough.
+      </p>
+    );
   }
 
   return (
-    <div className="narrative-view" aria-label="Narrative walkthrough">
+    <div className="flex flex-col gap-5" aria-label="Narrative walkthrough">
       {sections.map((section) => (
         <Fragment key={section.id}>
           <NarrativeMarkdown markdown={section.markdown} subtle={section.isFallback} />
@@ -86,29 +95,43 @@ const NarrativeDiffSection = ({
   preloadedHtml,
 }: NarrativeDiffSectionProps): React.JSX.Element => (
   <section
-    className={
-      isFormattingOnly ? "narrative-diff-section formatting-only" : "narrative-diff-section"
-    }
+    className={cn(
+      "scroll-mt-4 overflow-hidden rounded-lg border bg-background",
+      isFormattingOnly && "opacity-80",
+    )}
     data-change-status={file.status}
     ref={(element) => onFileElement?.(file.path, element)}
   >
-    <header className="narrative-diff-header">
-      <div>
-        <span className="status-pill">{statusLabel(file.status)}</span>
-        <h3>{file.path}</h3>
-        {file.previousPath ? <p>Renamed from {file.previousPath}</p> : null}
+    <header className="flex items-center justify-between gap-4 bg-muted px-4 py-3">
+      <div className="min-w-0">
+        <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
+        <h3 className="mt-2 break-all font-mono text-sm leading-snug text-foreground">
+          {file.path}
+        </h3>
+        {file.previousPath ? (
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            Renamed from {file.previousPath}
+          </p>
+        ) : null}
       </div>
-      <div className="narrative-diff-actions">
-        {isFormattingOnly ? <span className="noise-pill">Formatting</span> : null}
-        <span>
-          <span className="additions">+{file.additions}</span> /{" "}
-          <span className="deletions">-{file.deletions}</span>
-        </span>
-        <button aria-expanded={expanded} className="diff-toggle" onClick={onToggle} type="button">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {isFormattingOnly ? <Badge variant="outline">Formatting</Badge> : null}
+        <div className="flex items-center gap-2" aria-label="File change counts">
+          <Badge variant="secondary">+{file.additions}</Badge>
+          <Badge variant="destructive">-{file.deletions}</Badge>
+        </div>
+        <Button
+          aria-expanded={expanded}
+          onClick={onToggle}
+          size="xs"
+          type="button"
+          variant="outline"
+        >
           {expanded ? "Collapse" : "Expand"}
-        </button>
+        </Button>
       </div>
     </header>
+    <Separator />
     {expanded ? (
       file.patch ? (
         <PatchDiff
@@ -118,10 +141,12 @@ const NarrativeDiffSection = ({
           prerenderedHTML={preloadedHtml}
         />
       ) : (
-        <p className="empty-state">No textual diff is available for this file.</p>
+        <p className="p-4 text-sm text-muted-foreground">
+          No textual diff is available for this file.
+        </p>
       )
     ) : (
-      <p className="collapsed-diff-summary">
+      <p className="px-4 py-3 text-sm text-muted-foreground">
         {isFormattingOnly
           ? "Collapsed because this looks like formatting noise."
           : "Diff collapsed."}
@@ -137,7 +162,12 @@ const NarrativeMarkdown = ({
   markdown: string;
   subtle: boolean;
 }): React.JSX.Element => (
-  <article className={subtle ? "narrative-prose subtle" : "narrative-prose"}>
+  <article
+    className={cn(
+      "flex max-w-[70ch] flex-col gap-3 text-sm leading-7 text-foreground",
+      subtle && "text-muted-foreground",
+    )}
+  >
     {parseMarkdown(markdown).map((block, index) => renderMarkdownBlock(block, index))}
   </article>
 );
@@ -223,8 +253,11 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
 
   if (block.type === "code") {
     return (
-      <pre key={index}>
-        <code>{block.code}</code>
+      <pre
+        className="overflow-auto rounded-md border bg-background p-4 text-xs text-foreground"
+        key={index}
+      >
+        <code className="font-mono">{block.code}</code>
       </pre>
     );
   }
@@ -232,7 +265,10 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
   if (block.type === "list") {
     const ListTag = block.ordered ? "ol" : "ul";
     return (
-      <ListTag key={index}>
+      <ListTag
+        className={cn("flex flex-col gap-1 pl-5", block.ordered ? "list-decimal" : "list-disc")}
+        key={index}
+      >
         {block.items.map((item) => (
           <li key={item}>{renderInlineMarkdown(item)}</li>
         ))}
@@ -245,14 +281,26 @@ const renderMarkdownBlock = (block: MarkdownBlock, index: number): ReactNode => 
 
 const renderHeading = (level: number, text: string, key: number): ReactNode => {
   if (level === 1) {
-    return <h2 key={key}>{renderInlineMarkdown(text)}</h2>;
+    return (
+      <h2 className="text-xl font-semibold leading-tight text-foreground" key={key}>
+        {renderInlineMarkdown(text)}
+      </h2>
+    );
   }
 
   if (level === 2) {
-    return <h3 key={key}>{renderInlineMarkdown(text)}</h3>;
+    return (
+      <h3 className="text-lg font-semibold leading-tight text-foreground" key={key}>
+        {renderInlineMarkdown(text)}
+      </h3>
+    );
   }
 
-  return <h4 key={key}>{renderInlineMarkdown(text)}</h4>;
+  return (
+    <h4 className="text-base font-semibold leading-tight text-foreground" key={key}>
+      {renderInlineMarkdown(text)}
+    </h4>
+  );
 };
 
 const renderInlineMarkdown = (text: string): ReactNode[] => {
@@ -265,7 +313,14 @@ const renderInlineMarkdown = (text: string): ReactNode[] => {
       nodes.push(text.slice(lastIndex, match.index));
     }
 
-    nodes.push(<code key={`${match.index}-${match[1]}`}>{match[1]}</code>);
+    nodes.push(
+      <code
+        className="rounded-md border bg-background px-1 py-0.5 font-mono text-[0.9em] text-foreground"
+        key={`${match.index}-${match[1]}`}
+      >
+        {match[1]}
+      </code>,
+    );
     lastIndex = match.index + match[0].length;
   }
 

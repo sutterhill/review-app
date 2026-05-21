@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["src/renderer/src/*"]
+    }
   },
   "include": ["forge.config.ts", "vite.*.config.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

@@ -82,12 +82,7 @@ const PullRequestRoute = (): React.JSX.Element => {
   }, []);
 
   return (
-    <Card
-      className={cn(
-        "w-full",
-        prData ? "max-w-[min(118rem,calc(100vw-2rem))]" : "max-w-2xl",
-      )}
-    >
+    <Card className={cn("w-full", prData ? "max-w-[min(118rem,calc(100vw-2rem))]" : "max-w-2xl")}>
       <CardHeader>
         <CardDescription className="text-xs font-semibold uppercase tracking-widest text-primary">
           Pull Request

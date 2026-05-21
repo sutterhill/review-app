@@ -134,22 +134,10 @@ const PRRepoGroup = ({
           aria-label={`${repoGroup.repositoryName} repository setup`}
           className="flex flex-wrap justify-end gap-2"
         >
-          <Button
-            disabled={isBusy}
-            onClick={onClone}
-            size="xs"
-            type="button"
-            variant="outline"
-          >
+          <Button disabled={isBusy} onClick={onClone} size="xs" type="button" variant="outline">
             {repoEntry?.status === "cloning" ? "Cloning..." : "Clone"}
           </Button>
-          <Button
-            disabled={isBusy}
-            onClick={onLocate}
-            size="xs"
-            type="button"
-            variant="outline"
-          >
+          <Button disabled={isBusy} onClick={onLocate} size="xs" type="button" variant="outline">
             {repoEntry?.status === "locating" ? "Locating..." : "Locate"}
           </Button>
         </CardAction>
@@ -186,10 +174,7 @@ const PRListItem = ({ pullRequest }: PRListItemProps): React.JSX.Element => {
       >
         <Avatar size="sm">
           {pullRequest.author.avatarUrl ? (
-            <AvatarImage
-              alt={`@${pullRequest.author.login}`}
-              src={pullRequest.author.avatarUrl}
-            />
+            <AvatarImage alt={`@${pullRequest.author.login}`} src={pullRequest.author.avatarUrl} />
           ) : null}
           <AvatarFallback>{getAvatarFallback(pullRequest.author.login)}</AvatarFallback>
         </Avatar>
