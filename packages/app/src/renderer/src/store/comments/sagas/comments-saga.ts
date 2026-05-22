@@ -294,6 +294,29 @@ const extractJsonObject = (text: string): string | null => {
   return text.slice(start, end + 1);
 };
 
+const isCommentAuthor = (value: unknown): boolean => {
+  if (!value || typeof value !== "object") return false;
+  const author = value as Record<string, unknown>;
+  return (
+    (author.kind === "agent" || author.kind === "user") &&
+    typeof author.login === "string" &&
+    (author.avatarUrl === null || typeof author.avatarUrl === "string")
+  );
+};
+
+const isComment = (value: unknown): boolean => {
+  if (!value || typeof value !== "object") return false;
+  const comment = value as Record<string, unknown>;
+  return (
+    typeof comment.id === "string" &&
+    typeof comment.body === "string" &&
+    typeof comment.createdAt === "string" &&
+    typeof comment.threadId === "string" &&
+    (comment.source === "github" || comment.source === "local") &&
+    isCommentAuthor(comment.author)
+  );
+};
+
 const isCommentThread = (value: unknown): value is CommentThread => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CommentThread>;
@@ -305,6 +328,7 @@ const isCommentThread = (value: unknown): value is CommentThread => {
     candidate.lineRange.length === 2 &&
     typeof candidate.lineRange[0] === "number" &&
     typeof candidate.lineRange[1] === "number" &&
-    Array.isArray(candidate.comments)
+    Array.isArray(candidate.comments) &&
+    candidate.comments.every(isComment)
   );
 };
