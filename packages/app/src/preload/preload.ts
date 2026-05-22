@@ -11,6 +11,16 @@ type OrchestratorAgentEvent =
   | { result: string; type: "done" }
   | { error: string; type: "error" };
 
+type ReviewAgentEvent =
+  | { content: string; type: "chunk" }
+  | { result: string; type: "done" }
+  | { error: string; type: "error" };
+
+type ReplyAgentEvent =
+  | { content: string; type: "chunk" }
+  | { result: string; type: "done" }
+  | { error: string; type: "error" };
+
 interface AuthStatusResult {
   authenticated: boolean;
   source: "gh" | "none" | "stored";
@@ -35,6 +45,8 @@ type RepoWorktreeEntry = { branch: string; path: string };
 
 let walkthroughRequestCount = 0;
 let orchestratorRequestCount = 0;
+let reviewAgentRequestCount = 0;
+let replyAgentRequestCount = 0;
 
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
@@ -139,6 +151,72 @@ contextBridge.exposeInMainWorld("reviewAppViewedFiles", {
   },
 });
 
+contextBridge.exposeInMainWorld("reviewAppComments", {
+  load: async (prReference: string): Promise<unknown[]> => {
+    const result = await ipcRenderer.invoke("comments:load", prReference);
+    return Array.isArray(result) ? result : [];
+  },
+  save: async (prReference: string, threads: unknown[]): Promise<void> => {
+    await ipcRenderer.invoke("comments:save", prReference, threads);
+  },
+});
+
+contextBridge.exposeInMainWorld("reviewAppReviewAgent", {
+  run: (request: unknown, onEvent: (event: ReviewAgentEvent) => void) => {
+    const requestId = `review-agent-${Date.now()}-${reviewAgentRequestCount}`;
+    reviewAgentRequestCount += 1;
+    const channel = `review-agent:stream:${requestId}`;
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown): void => {
+      if (isReviewAgentEvent(payload)) {
+        onEvent(payload);
+      }
+    };
+
+    ipcRenderer.on(channel, listener);
+    void ipcRenderer.invoke("review-agent:run", requestId, request).catch((error: unknown) => {
+      onEvent({
+        error: error instanceof Error ? error.message : "Review agent session failed.",
+        type: "error",
+      });
+    });
+
+    return {
+      abort: (): void => {
+        ipcRenderer.removeListener(channel, listener);
+        void ipcRenderer.invoke("review-agent:abort", requestId);
+      },
+    };
+  },
+});
+
+contextBridge.exposeInMainWorld("reviewAppReplyAgent", {
+  run: (request: unknown, onEvent: (event: ReplyAgentEvent) => void) => {
+    const requestId = `reply-agent-${Date.now()}-${replyAgentRequestCount}`;
+    replyAgentRequestCount += 1;
+    const channel = `reply-agent:stream:${requestId}`;
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown): void => {
+      if (isReplyAgentEvent(payload)) {
+        onEvent(payload);
+      }
+    };
+
+    ipcRenderer.on(channel, listener);
+    void ipcRenderer.invoke("reply-agent:run", requestId, request).catch((error: unknown) => {
+      onEvent({
+        error: error instanceof Error ? error.message : "Reply agent session failed.",
+        type: "error",
+      });
+    });
+
+    return {
+      abort: (): void => {
+        ipcRenderer.removeListener(channel, listener);
+        void ipcRenderer.invoke("reply-agent:abort", requestId);
+      },
+    };
+  },
+});
+
 contextBridge.exposeInMainWorld("reviewAppOrchestrator", {
   run: (request: unknown, onEvent: (event: OrchestratorAgentEvent) => void) => {
     const requestId = `orchestrator-${Date.now()}-${orchestratorRequestCount}`;
@@ -176,6 +254,32 @@ const isWalkthroughAgentEvent = (payload: unknown): payload is WalkthroughAgentE
   return (
     (event.type === "chunk" && typeof event.content === "string") ||
     event.type === "done" ||
+    (event.type === "error" && typeof event.error === "string")
+  );
+};
+
+const isReviewAgentEvent = (payload: unknown): payload is ReviewAgentEvent => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const event = payload as { content?: unknown; error?: unknown; result?: unknown; type?: unknown };
+  return (
+    (event.type === "chunk" && typeof event.content === "string") ||
+    (event.type === "done" && typeof event.result === "string") ||
+    (event.type === "error" && typeof event.error === "string")
+  );
+};
+
+const isReplyAgentEvent = (payload: unknown): payload is ReplyAgentEvent => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const event = payload as { content?: unknown; error?: unknown; result?: unknown; type?: unknown };
+  return (
+    (event.type === "chunk" && typeof event.content === "string") ||
+    (event.type === "done" && typeof event.result === "string") ||
     (event.type === "error" && typeof event.error === "string")
   );
 };

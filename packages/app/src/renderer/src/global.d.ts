@@ -7,6 +7,16 @@ import type {
 } from "./services/agent-orchestrator";
 import type { AuthStatusResult, GitHubDeviceFlow, GitHubDevicePollResult } from "./services/auth";
 import type {
+  ReplyAgentController,
+  ReplyAgentEvent,
+  ReplyAgentRequest,
+} from "./services/reply-agent";
+import type {
+  ReviewAgentController,
+  ReviewAgentEvent,
+  ReviewAgentRequest,
+} from "./services/review-agent";
+import type {
   WalkthroughAgentController,
   WalkthroughAgentEvent,
   WalkthroughAgentRequest,
@@ -46,11 +56,27 @@ declare global {
       load: (prReference: string) => Promise<string[]>;
       save: (prReference: string, paths: string[]) => Promise<void>;
     };
+    reviewAppComments: {
+      load: (prReference: string) => Promise<unknown[]>;
+      save: (prReference: string, threads: unknown[]) => Promise<void>;
+    };
     reviewAppOrchestrator: {
       run: (
         request: OrchestratorAgentSessionRequest,
         onEvent: (event: OrchestratorAgentEvent) => void,
       ) => OrchestratorAgentController;
+    };
+    reviewAppReviewAgent: {
+      run: (
+        request: ReviewAgentRequest,
+        onEvent: (event: ReviewAgentEvent) => void,
+      ) => ReviewAgentController;
+    };
+    reviewAppReplyAgent: {
+      run: (
+        request: ReplyAgentRequest,
+        onEvent: (event: ReplyAgentEvent) => void,
+      ) => ReplyAgentController;
     };
   }
 }
