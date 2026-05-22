@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
+import { getRuntimeLabel } from "../../services/runtime";
 import {
   selectMyPullRequests,
   selectMyPullRequestsError,
@@ -41,6 +42,7 @@ export const PRList = (): React.JSX.Element => {
   const activeStatus = prListMode === "mine" ? myPullRequestsStatus : status;
   const activeError = prListMode === "mine" ? myPullRequestsError : error;
   const repoGroups = groupPullRequestsByRepository(activePullRequests);
+  const supportsLocalRepos = getRuntimeLabel() === "desktop";
 
   useEffect(() => {
     if (prListMode === "mine") {
@@ -120,6 +122,7 @@ export const PRList = (): React.JSX.Element => {
                     repoEntry={repoEntry}
                     repoGroup={repoGroup}
                     prListMode={prListMode}
+                    supportsLocalRepos={supportsLocalRepos}
                   />
                 );
               })}
@@ -142,6 +145,7 @@ interface PRRepoGroupProps {
   prListMode: PrListMode;
   repoEntry?: RepoRegistryEntry;
   repoGroup: PullRequestRepoGroup;
+  supportsLocalRepos: boolean;
 }
 
 const PRRepoGroup = ({
@@ -150,6 +154,7 @@ const PRRepoGroup = ({
   prListMode,
   repoEntry,
   repoGroup,
+  supportsLocalRepos,
 }: PRRepoGroupProps): React.JSX.Element => {
   const isBusy = repoEntry?.status === "cloning" || repoEntry?.status === "locating";
 
@@ -169,17 +174,19 @@ const PRRepoGroup = ({
             {repoEntry?.error ? <span className="text-destructive">{repoEntry.error}</span> : null}
           </div>
         </div>
-        <div
-          aria-label={`${repoGroup.repositoryName} repository setup`}
-          className="flex flex-wrap justify-end gap-2"
-        >
-          <Button disabled={isBusy} onClick={onClone} size="xs" type="button" variant="outline">
-            {repoEntry?.status === "cloning" ? "Cloning..." : "Clone"}
-          </Button>
-          <Button disabled={isBusy} onClick={onLocate} size="xs" type="button" variant="outline">
-            {repoEntry?.status === "locating" ? "Locating..." : "Locate"}
-          </Button>
-        </div>
+        {supportsLocalRepos ? (
+          <div
+            aria-label={`${repoGroup.repositoryName} repository setup`}
+            className="flex flex-wrap justify-end gap-2"
+          >
+            <Button disabled={isBusy} onClick={onClone} size="xs" type="button" variant="outline">
+              {repoEntry?.status === "cloning" ? "Cloning..." : "Clone"}
+            </Button>
+            <Button disabled={isBusy} onClick={onLocate} size="xs" type="button" variant="outline">
+              {repoEntry?.status === "locating" ? "Locating..." : "Locate"}
+            </Button>
+          </div>
+        ) : null}
       </header>
       <div className="flex flex-col border-t">
         {repoGroup.pullRequests.map((pullRequest, index) => {

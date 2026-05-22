@@ -1,12 +1,15 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { call, debounce, put, select, takeEvery } from "redux-saga/effects";
 
+import { readLocalJson, writeLocalJson } from "../../../services/runtime";
 import { selectViewedFilesForPr } from "../viewed-files-selectors";
 import { viewedFilesActions } from "../viewed-files-slice";
 
+const WEB_VIEWED_FILES_KEY = "review-app.viewed-files";
+
 export const loadViewedFilesFromDisk = async (prReference: string): Promise<string[]> => {
   if (typeof window === "undefined" || !window.reviewAppViewedFiles) {
-    return [];
+    return readLocalJson<Record<string, string[]>>(WEB_VIEWED_FILES_KEY, {})[prReference] ?? [];
   }
   return window.reviewAppViewedFiles.load(prReference);
 };
@@ -16,6 +19,8 @@ export const saveViewedFilesToDisk = async (
   paths: string[],
 ): Promise<void> => {
   if (typeof window === "undefined" || !window.reviewAppViewedFiles) {
+    const cache = readLocalJson<Record<string, string[]>>(WEB_VIEWED_FILES_KEY, {});
+    writeLocalJson(WEB_VIEWED_FILES_KEY, { ...cache, [prReference]: paths });
     return;
   }
   await window.reviewAppViewedFiles.save(prReference, paths);

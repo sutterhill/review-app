@@ -4,9 +4,14 @@ compatibility_date = "2026-05-20"
 
 [vars]
 CORS_ORIGIN = "http://localhost:5173"
+# Replace with the GitHub OAuth app client ID when created.
+GITHUB_OAUTH_CLIENT_ID = "replace-me"
 
 # Required secret for Worker API authentication:
 # pnpm exec wrangler secret put REVIEW_APP_API_TOKEN
+# Required secrets for GitHub OAuth and app session sealing:
+# pnpm exec wrangler secret put GITHUB_OAUTH_CLIENT_SECRET
+# pnpm exec wrangler secret put REVIEW_APP_SESSION_SECRET
 
 [[d1_databases]]
 binding = "DB"

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import worker from "./index";
 
@@ -32,6 +32,10 @@ interface MockState {
 type WorkerEnv = Parameters<typeof worker.fetch>[1];
 
 describe("worker API endpoints", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("caches and retrieves pull requests", async () => {
     const env = createEnv();
     const postResponse = await worker.fetch(
@@ -109,13 +113,70 @@ describe("worker API endpoints", () => {
     expect(missingGet.status).toBe(404);
     await expect(missingGet.json()).resolves.toEqual({ error: "Narrative not found" });
   });
+
+  it("starts GitHub OAuth with a stateful redirect", async () => {
+    const response = await worker.fetch(
+      new Request("https://worker.test/auth/github/start?return_to=http://localhost:5173/"),
+      createEnv(),
+    );
+    const location = response.headers.get("Location");
+
+    expect(response.status).toBe(302);
+    expect(location).toContain("https://github.com/login/oauth/authorize");
+    expect(location).toContain("client_id=test-client-id");
+    expect(location).toContain("scope=repo+read%3Aorg");
+    expect(location).toContain("state=");
+  });
+
+  it("finishes GitHub OAuth and unwraps the app session", async () => {
+    const env = createEnv();
+    const startResponse = await worker.fetch(
+      new Request("https://worker.test/auth/github/start?return_to=http://localhost:5173/"),
+      env,
+    );
+    const state = new URL(startResponse.headers.get("Location") ?? "").searchParams.get("state");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ access_token: "github-oauth-token" }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    const callbackResponse = await worker.fetch(
+      new Request(`https://worker.test/auth/github/callback?code=oauth-code&state=${state}`),
+      env,
+    );
+    const callbackLocation = new URL(callbackResponse.headers.get("Location") ?? "");
+    const session = callbackLocation.searchParams.get("reviewAppSession");
+
+    expect(callbackResponse.status).toBe(302);
+    expect(callbackLocation.origin).toBe("http://localhost:5173");
+    expect(session).toBeTruthy();
+
+    const sessionResponse = await worker.fetch(
+      new Request("https://worker.test/auth/session", {
+        headers: { Authorization: `Bearer ${session}` },
+      }),
+      env,
+    );
+
+    expect(sessionResponse.status).toBe(200);
+    await expect(sessionResponse.json()).resolves.toEqual({ githubToken: "github-oauth-token" });
+  });
 });
 
 const createEnv = (): WorkerEnv =>
   ({
-    CORS_ORIGIN: "http://localhost",
+    CORS_ORIGIN: "http://localhost:5173",
     DB: createMockDb(),
+    GITHUB_OAUTH_CLIENT_ID: "test-client-id",
+    GITHUB_OAUTH_CLIENT_SECRET: "test-client-secret",
     REVIEW_APP_API_TOKEN: API_TOKEN,
+    REVIEW_APP_SESSION_SECRET: "test-session-secret",
   }) as WorkerEnv;
 
 const seedPr = async (env: WorkerEnv): Promise<void> => {

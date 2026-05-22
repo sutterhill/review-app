@@ -5,6 +5,8 @@
   "description": "Electron PR narrative review app",
   "main": ".vite/build/main.js",
   "scripts": {
+    "build:web": "vite build --config vite.renderer.config.ts",
+    "dev:web": "vite --config vite.renderer.config.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",

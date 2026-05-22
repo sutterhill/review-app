@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build:web": "pnpm --filter @review-app/app build:web",
     "dev": "pnpm --filter @review-app/app start",
+    "dev:web": "pnpm --filter @review-app/app dev:web",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
