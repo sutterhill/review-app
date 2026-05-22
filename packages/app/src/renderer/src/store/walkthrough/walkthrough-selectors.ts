@@ -1,3 +1,4 @@
+import { extractStreamingLine } from "../../lib/streaming-line";
 import type { RootState } from "../store";
 import type {
   WalkthroughGroup,
@@ -22,6 +23,13 @@ export const selectInitialResponse = (state: RootState): null | WalkthroughRespo
 
 export const selectInitialGroups = (state: RootState): WalkthroughGroup[] =>
   selectInitialResponse(state)?.groups ?? [];
+
+export const selectStreamingPreview = (state: RootState): string => {
+  const messages = state.walkthrough.messages;
+  const last = messages[messages.length - 1];
+  if (!last || last.status !== "streaming") return "";
+  return extractStreamingLine(last.raw);
+};
 
 export const selectSuggestedQuestions = (state: RootState): string[] => {
   const messages = state.walkthrough.messages;
