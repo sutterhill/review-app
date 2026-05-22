@@ -160,6 +160,9 @@ export const fetchPullRequestComments = async (
   return response.map(toComment);
 };
 
+const REVIEW_COMMENTS_PAGE_SIZE = 100;
+const REVIEW_COMMENTS_MAX_PAGES = 20;
+
 export const fetchPullRequestReviewComments = async (
   reference: string,
 ): Promise<CommentThread[]> => {
@@ -170,11 +173,20 @@ export const fetchPullRequestReviewComments = async (
     throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
   }
 
-  const path = `/repos/${encodeURIComponent(pullReference.owner)}/${encodeURIComponent(
+  const base = `/repos/${encodeURIComponent(pullReference.owner)}/${encodeURIComponent(
     pullReference.repo,
-  )}/pulls/${pullReference.number}/comments?per_page=100`;
-  const response = await requestGitHub<GitHubReviewCommentResponse[]>(path, token);
-  return groupReviewCommentsIntoThreads(reference, response);
+  )}/pulls/${pullReference.number}/comments`;
+
+  const all: GitHubReviewCommentResponse[] = [];
+  for (let page = 1; page <= REVIEW_COMMENTS_MAX_PAGES; page += 1) {
+    const path = `${base}?per_page=${REVIEW_COMMENTS_PAGE_SIZE}&page=${page}`;
+    const response = await requestGitHub<GitHubReviewCommentResponse[]>(path, token);
+    if (!Array.isArray(response) || response.length === 0) break;
+    all.push(...response);
+    if (response.length < REVIEW_COMMENTS_PAGE_SIZE) break;
+  }
+
+  return groupReviewCommentsIntoThreads(reference, all);
 };
 
 export const groupReviewCommentsIntoThreads = (
