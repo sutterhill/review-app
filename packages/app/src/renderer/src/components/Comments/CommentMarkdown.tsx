@@ -1,5 +1,6 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
@@ -17,8 +18,16 @@ const MARKDOWN_COMPONENTS: Components = {
   ),
 };
 
+const SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "sub", "sup", "details", "summary"],
+};
+
 const REMARK_PLUGINS = [remarkGfm];
-const REHYPE_PLUGINS = [rehypeRaw];
+const REHYPE_PLUGINS: React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"] = [
+  rehypeRaw,
+  [rehypeSanitize, SANITIZE_SCHEMA],
+];
 
 export const CommentMarkdown = ({ body, className }: CommentMarkdownProps): React.JSX.Element => (
   <div
