@@ -1,13 +1,15 @@
-import { PatchDiff } from "@pierre/diffs/react";
-import { Check, X } from "lucide-react";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { useEffect, useMemo, useRef } from "react";
+import { useSelector } from "react-redux";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
+import { selectThreadsForFile } from "../../store/comments/comments-selectors";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { LineRange } from "../../store/walkthrough/walkthrough-types";
+import { AnnotatedPatchDiff } from "../Comments/AnnotatedPatchDiff";
 import { DIFF_OPTIONS, statusBadgeVariant, statusLabel } from "../diff-utils";
 import { parseUnifiedDiff } from "../DiffView/diff-parser";
 
@@ -107,7 +109,7 @@ export const FileOverlayPanel = ({
               onClick={() => onToggleViewed(file.filename, !isViewed)}
               type="button"
             >
-              <Check className={cn("size-3.5", isViewed ? "opacity-100" : "opacity-40")} />
+              <CheckIcon className={cn("size-3.5", isViewed ? "opacity-100" : "opacity-40")} />
               {isViewed ? "Viewed" : "Mark as viewed"}
             </button>
           ) : null}
@@ -117,15 +119,19 @@ export const FileOverlayPanel = ({
             onClick={onClose}
             type="button"
           >
-            <X className="size-4" />
+            <XMarkIcon className="size-4" />
           </button>
         </div>
       </header>
       <Separator />
-      <div className="flex-1 overflow-auto" ref={containerRef}>
+      <div className="flex-1 overflow-auto [container-type:inline-size]" ref={containerRef}>
         <EmphasisMarkers file={file} ranges={emphasizedRanges ?? []} />
         {parsedFile?.patch ? (
-          <PatchDiff options={DIFF_OPTIONS} patch={parsedFile.patch} />
+          <OverlayDiff
+            filePath={selectedPath}
+            patch={parsedFile.patch}
+            prReference={pullRequest.metadata.reference}
+          />
         ) : (
           <p className="p-4 text-sm text-muted-foreground">
             No textual diff available for this file.
@@ -157,6 +163,27 @@ const OverlayContainer = ({ children, onClose }: OverlayContainerProps): React.J
     </section>
   </div>
 );
+
+const OverlayDiff = ({
+  filePath,
+  patch,
+  prReference,
+}: {
+  filePath: string;
+  patch: string;
+  prReference: string;
+}): React.JSX.Element => {
+  const threads = useSelector(selectThreadsForFile(prReference, filePath));
+  return (
+    <AnnotatedPatchDiff
+      filePath={filePath}
+      options={DIFF_OPTIONS}
+      patch={patch}
+      prReference={prReference}
+      threads={threads}
+    />
+  );
+};
 
 const EmphasisMarkers = ({
   file: _file,

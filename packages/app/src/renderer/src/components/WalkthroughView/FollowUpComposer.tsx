@@ -1,4 +1,4 @@
-import { ArrowRight, Send } from "lucide-react";
+import { ArrowRightIcon, PaperAirplaneIcon } from "@heroicons/react/16/solid";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,10 @@ export const FollowUpComposer = ({
                 onClick={() => submit(question)}
                 type="button"
               >
-                <Send aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                <PaperAirplaneIcon
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                />
                 <span className="flex-1 truncate">{question}</span>
                 <kbd className="shrink-0 font-mono text-xs text-muted-foreground/70">
                   ^{index + 1}
@@ -100,7 +103,7 @@ export const FollowUpComposer = ({
           type="submit"
           variant="default"
         >
-          <ArrowRight />
+          <ArrowRightIcon />
         </Button>
       </form>
     </div>

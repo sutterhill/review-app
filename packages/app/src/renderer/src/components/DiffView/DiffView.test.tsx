@@ -1,7 +1,10 @@
+import { configureStore } from "@reduxjs/toolkit";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Provider } from "react-redux";
 import { describe, expect, it, vi } from "vitest";
 
+import { commentsReducer } from "../../store/comments/comments-slice";
 import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 
 vi.mock("@/components/ui/badge", () => ({
@@ -21,11 +24,20 @@ vi.mock("@pierre/diffs/react", () => ({
   WorkerPoolContextProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
+vi.mock("../Comments/AnnotatedPatchDiff", () => ({
+  AnnotatedPatchDiff: ({ patch }: { patch: string }) => <pre data-diffs-container>{patch}</pre>,
+}));
+
 import { DiffView } from "./DiffView";
+
+const renderWithStore = (ui: ReactNode): string => {
+  const store = configureStore({ reducer: { comments: commentsReducer } });
+  return renderToStaticMarkup(<Provider store={store}>{ui}</Provider>);
+};
 
 describe("DiffView", () => {
   it("renders the first three file patches eagerly and defers later patches", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithStore(
       <DiffView onFileElement={() => {}} pullRequest={pullRequestWithFiles(4)} />,
     );
 
@@ -40,9 +52,7 @@ describe("DiffView", () => {
 
   it("keeps the no textual diff message for files without a patch", () => {
     const pullRequest = pullRequestWithFiles(1, [file("dist/bundle.js", "")]);
-    const html = renderToStaticMarkup(
-      <DiffView onFileElement={() => {}} pullRequest={pullRequest} />,
-    );
+    const html = renderWithStore(<DiffView onFileElement={() => {}} pullRequest={pullRequest} />);
 
     expect(html).toContain("dist/bundle.js");
     expect(html).toContain("No textual diff is available for this file.");

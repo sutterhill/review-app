@@ -1,12 +1,17 @@
-import { PatchDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { Check } from "lucide-react";
+import { CheckIcon } from "@heroicons/react/16/solid";
+import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
+import { selectThreadsForFile } from "../../store/comments/comments-selectors";
 import type { PullRequestData } from "../../store/pr/pr-types";
+import { CollapseChevron } from "../CollapseChevron";
+import { CollapseContent } from "../CollapseContent";
+import { AnnotatedPatchDiff } from "../Comments/AnnotatedPatchDiff";
 import { DIFF_OPTIONS, statusBadgeVariant, statusLabel } from "../diff-utils";
 import { parseUnifiedDiff, type ParsedDiffFile } from "./diff-parser";
 
@@ -64,6 +69,7 @@ export const DiffView = ({
             isViewed={viewedPaths?.has(file.path) ?? false}
             key={file.path}
             onFileElement={onFileElement}
+            prReference={pullRequest.metadata.reference}
             onToggleViewed={onToggleViewed}
           />
         ))}
@@ -78,6 +84,7 @@ interface LazyDiffFileProps {
   isViewed: boolean;
   onFileElement(path: string, element: HTMLElement | null): void;
   onToggleViewed?: (path: string, viewed: boolean) => void;
+  prReference: string;
 }
 
 const LazyDiffFile = memo(
@@ -87,9 +94,25 @@ const LazyDiffFile = memo(
     isViewed,
     onFileElement,
     onToggleViewed,
+    prReference,
   }: LazyDiffFileProps): React.JSX.Element => {
+    const threads = useSelector(selectThreadsForFile(prReference, file.path));
     const sectionRef = useRef<HTMLElement | null>(null);
     const [isVisible, setIsVisible] = useState(eager);
+    const [collapsed, setCollapsed] = useState(isViewed);
+
+    useEffect(() => {
+      setCollapsed(isViewed);
+    }, [isViewed]);
+
+    const handleToggleViewed = useCallback(
+      (path: string, viewed: boolean) => {
+        onToggleViewed?.(path, viewed);
+        setCollapsed(viewed);
+      },
+      [onToggleViewed],
+    );
+    const toggleCollapsed = useCallback(() => setCollapsed((value) => !value), []);
 
     useEffect(() => {
       if (eager || isVisible || !file.patch) {
@@ -131,50 +154,81 @@ const LazyDiffFile = memo(
     return (
       <section
         className={cn(
-          "scroll-mt-4 overflow-hidden border bg-background transition-opacity",
+          "scroll-mt-4 overflow-hidden border bg-background transition-opacity [container-type:inline-size]",
           isViewed && "opacity-60",
         )}
         data-change-status={file.status}
         ref={setSectionElement}
       >
-        <DiffFileHeader file={file} isViewed={isViewed} onToggleViewed={onToggleViewed} />
-        <Separator />
-        {isVisible && file.patch ? (
-          <PatchDiff options={DIFF_OPTIONS} patch={file.patch} />
-        ) : file.patch ? (
-          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            Loading diff…
-          </div>
-        ) : (
-          <p className="p-4 text-sm text-muted-foreground">
-            No textual diff is available for this file.
-          </p>
-        )}
+        <DiffFileHeader
+          collapsed={collapsed}
+          file={file}
+          isViewed={isViewed}
+          onToggleCollapsed={toggleCollapsed}
+          onToggleViewed={onToggleViewed ? handleToggleViewed : undefined}
+        />
+        <CollapseContent collapsed={collapsed}>
+          <Separator />
+          {isVisible && file.patch ? (
+            <AnnotatedPatchDiff
+              filePath={file.path}
+              options={DIFF_OPTIONS}
+              patch={file.patch}
+              prReference={prReference}
+              threads={threads}
+            />
+          ) : file.patch ? (
+            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+              Loading diff…
+            </div>
+          ) : (
+            <p className="p-4 text-sm text-muted-foreground">
+              No textual diff is available for this file.
+            </p>
+          )}
+        </CollapseContent>
       </section>
     );
   },
 );
 
 interface DiffFileHeaderProps {
+  collapsed: boolean;
   file: ParsedDiffFile;
   isViewed: boolean;
+  onToggleCollapsed: () => void;
   onToggleViewed?: (path: string, viewed: boolean) => void;
 }
 
 const DiffFileHeader = ({
+  collapsed,
   file,
   isViewed,
+  onToggleCollapsed,
   onToggleViewed,
 }: DiffFileHeaderProps): React.JSX.Element => (
   <header className="flex items-center justify-between gap-4 bg-muted px-4 py-3">
-    <div className="min-w-0">
-      <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
-      <h3 className="mt-2 break-all font-mono text-sm leading-snug text-foreground">{file.path}</h3>
-      {file.previousPath ? (
-        <p className="mt-1 break-all text-xs text-muted-foreground">
-          Renamed from {file.previousPath}
-        </p>
-      ) : null}
+    <div className="flex min-w-0 items-start gap-2">
+      <button
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Expand file diff" : "Collapse file diff"}
+        className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+        onClick={onToggleCollapsed}
+        type="button"
+      >
+        <CollapseChevron className="size-4" collapsed={collapsed} />
+      </button>
+      <div className="min-w-0">
+        <Badge variant={statusBadgeVariant(file.status)}>{statusLabel(file.status)}</Badge>
+        <h3 className="mt-2 break-all font-mono text-sm leading-snug text-foreground">
+          {file.path}
+        </h3>
+        {file.previousPath ? (
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            Renamed from {file.previousPath}
+          </p>
+        ) : null}
+      </div>
     </div>
     <div className="flex shrink-0 items-center gap-2" aria-label="File change counts">
       <Badge variant="secondary">+{file.additions}</Badge>
@@ -192,7 +246,7 @@ const DiffFileHeader = ({
           onClick={() => onToggleViewed(file.path, !isViewed)}
           type="button"
         >
-          {isViewed ? <Check className="size-3.5" /> : null}
+          {isViewed ? <CheckIcon className="size-3.5" /> : null}
         </button>
       ) : null}
     </div>

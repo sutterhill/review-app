@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useParams } from "react-router";
 
 import { cn } from "@/lib/utils";
 
+import { RequestAgentReviewButton } from "../components/Comments/RequestAgentReviewButton";
 import { CubeLoader } from "../components/CubeLoader";
 import { selectPrData, selectPrError } from "../store/pr/pr-selectors";
 import { prActions } from "../store/pr/pr-slice";
@@ -141,12 +142,15 @@ export const PRLayout = (): React.JSX.Element => {
                     files.
                   </p>
                 </div>
-                <Link
-                  className="w-fit shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  to="/"
-                >
-                  Back
-                </Link>
+                <div className="flex shrink-0 items-center gap-3">
+                  <RequestAgentReviewButton prReference={prData.metadata.reference} />
+                  <Link
+                    className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                    to="/"
+                  >
+                    Back
+                  </Link>
+                </div>
               </div>
             </header>
             <nav className="flex w-full gap-1 border-b px-4" aria-label="Pull request sections">
