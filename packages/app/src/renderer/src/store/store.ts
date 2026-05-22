@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import createSagaMiddleware from "redux-saga";
 
 import { authReducer } from "./auth/auth-slice";
+import { commentsReducer } from "./comments/comments-slice";
 import { orchestratorReducer } from "./orchestrator/orchestrator-slice";
 import { prReducer } from "./pr/pr-slice";
 import { reposReducer } from "./repos/repos-slice";
@@ -16,6 +17,7 @@ export const store = configureStore({
     getDefaultMiddleware({ thunk: false }).concat(sagaMiddleware),
   reducer: {
     auth: authReducer,
+    comments: commentsReducer,
     walkthrough: walkthroughReducer,
     orchestrator: orchestratorReducer,
     pr: prReducer,

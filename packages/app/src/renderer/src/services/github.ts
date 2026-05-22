@@ -1,3 +1,4 @@
+import type { Comment, CommentThread } from "../store/comments/comments-types";
 import type {
   GitHubAccount,
   PrErrorCode,
@@ -75,6 +76,23 @@ interface GitHubFileResponse {
   status?: string;
 }
 
+interface GitHubReviewCommentResponse {
+  body?: string | null;
+  created_at?: string;
+  html_url?: string;
+  id?: number;
+  in_reply_to_id?: number | null;
+  line?: number | null;
+  original_line?: number | null;
+  original_start_line?: number | null;
+  path?: string;
+  side?: "LEFT" | "RIGHT" | null;
+  start_line?: number | null;
+  start_side?: "LEFT" | "RIGHT" | null;
+  updated_at?: string;
+  user?: GitHubUserResponse | null;
+}
+
 export class GitHubApiError extends Error {
   constructor(
     readonly code: PrErrorCode,
@@ -141,6 +159,88 @@ export const fetchPullRequestComments = async (
   const response = await requestGitHub<GitHubCommentResponse[]>(path, token);
   return response.map(toComment);
 };
+
+export const fetchPullRequestReviewComments = async (
+  reference: string,
+): Promise<CommentThread[]> => {
+  const pullReference = parsePullRequestReference(reference);
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const path = `/repos/${encodeURIComponent(pullReference.owner)}/${encodeURIComponent(
+    pullReference.repo,
+  )}/pulls/${pullReference.number}/comments?per_page=100`;
+  const response = await requestGitHub<GitHubReviewCommentResponse[]>(path, token);
+  return groupReviewCommentsIntoThreads(reference, response);
+};
+
+export const groupReviewCommentsIntoThreads = (
+  prReference: string,
+  raw: GitHubReviewCommentResponse[],
+): CommentThread[] => {
+  const byId = new Map<number, GitHubReviewCommentResponse>();
+  for (const entry of raw) {
+    if (typeof entry.id === "number") byId.set(entry.id, entry);
+  }
+
+  const roots: GitHubReviewCommentResponse[] = [];
+  const repliesByRoot = new Map<number, GitHubReviewCommentResponse[]>();
+  for (const entry of raw) {
+    const parentId = typeof entry.in_reply_to_id === "number" ? entry.in_reply_to_id : null;
+    if (parentId === null || !byId.has(parentId)) {
+      roots.push(entry);
+      continue;
+    }
+    const list = repliesByRoot.get(parentId) ?? [];
+    list.push(entry);
+    repliesByRoot.set(parentId, list);
+  }
+
+  return roots
+    .map((root) => toReviewCommentThread(prReference, root, repliesByRoot.get(root.id ?? -1) ?? []))
+    .filter((thread): thread is CommentThread => thread !== null);
+};
+
+const toReviewCommentThread = (
+  prReference: string,
+  root: GitHubReviewCommentResponse,
+  replies: GitHubReviewCommentResponse[],
+): CommentThread | null => {
+  const filePath = root.path ?? "";
+  if (!filePath) return null;
+  const side = root.side === "LEFT" ? "old" : "new";
+  const endLine = root.line ?? root.original_line ?? 0;
+  const startLine = root.start_line ?? root.original_start_line ?? endLine;
+  if (endLine === 0) return null;
+  const threadId = `github-${root.id ?? `${filePath}-${startLine}-${endLine}`}`;
+  const ordered = [root, ...replies].sort((a, b) =>
+    (a.created_at ?? "").localeCompare(b.created_at ?? ""),
+  );
+  return {
+    comments: ordered.map((entry) => toReviewComment(threadId, entry)),
+    filePath,
+    githubUrl: root.html_url,
+    id: threadId,
+    lineRange: [Math.min(startLine, endLine), Math.max(startLine, endLine)],
+    prReference,
+    resolved: false,
+    side,
+    source: "github",
+  };
+};
+
+const toReviewComment = (threadId: string, entry: GitHubReviewCommentResponse): Comment => ({
+  author: { ...toGitHubAccount(entry.user), kind: "user" },
+  body: entry.body ?? "",
+  createdAt: entry.created_at ?? "",
+  githubUrl: entry.html_url,
+  id: `github-${entry.id ?? `${threadId}-${entry.created_at ?? ""}`}`,
+  source: "github",
+  threadId,
+});
 
 export const fetchOpenPullRequestsFromGitHub = async (): Promise<PullRequestSummary[]> => {
   const token = await getGitHubToken();
