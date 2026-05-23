@@ -27,6 +27,13 @@ import { normalizeRepoKey, reposActions } from "../../store/repos/repos-slice";
 import type { RepoRegistryEntry, RepoWorktreeEntry } from "../../store/repos/repos-types";
 import type { AppDispatch } from "../../store/store";
 
+const segmentedItemClasses = cn(
+  "cursor-pointer border-0 bg-transparent text-muted-foreground",
+  "hover:bg-transparent hover:text-foreground",
+  "data-[pressed=true]:bg-background data-[pressed=true]:text-foreground data-[pressed=true]:shadow-sm",
+  "aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm",
+);
+
 export const PRList = (): React.JSX.Element => {
   const dispatch = useDispatch<AppDispatch>();
   const pullRequests = useSelector(selectOpenPullRequests);
@@ -62,9 +69,9 @@ export const PRList = (): React.JSX.Element => {
 
   return (
     <div className="mx-auto w-full max-w-7xl rounded-lg bg-muted/30 p-4">
-      <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Reviews</h1>
+      <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-lg font-semibold">Reviews</h1>
+        <div className="flex flex-1 items-center justify-end gap-3">
           <ToggleGroup
             value={[prListMode]}
             onValueChange={(value) => {
@@ -73,21 +80,26 @@ export const PRList = (): React.JSX.Element => {
               if (nextMode) dispatch(prActions.setPrListMode(nextMode as PrListMode));
             }}
             size="sm"
+            spacing={1}
+            className="rounded-lg bg-muted p-1"
+          >
+            <ToggleGroupItem className={segmentedItemClasses} value="needs-review">
+              Needs review
+            </ToggleGroupItem>
+            <ToggleGroupItem className={segmentedItemClasses} value="mine">
+              Mine
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button
+            disabled={isLoading}
+            onClick={handleRefresh}
+            size="sm"
+            type="button"
             variant="outline"
           >
-            <ToggleGroupItem value="needs-review">Needs review</ToggleGroupItem>
-            <ToggleGroupItem value="mine">Mine</ToggleGroupItem>
-          </ToggleGroup>
+            {isLoading ? "Refreshing..." : "Refresh"}
+          </Button>
         </div>
-        <Button
-          disabled={isLoading}
-          onClick={handleRefresh}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {isLoading ? "Refreshing..." : "Refresh"}
-        </Button>
       </header>
       <div className="flex min-h-0 flex-col gap-4 pt-4">
         {activeError ? <p className="text-sm text-destructive">{activeError.message}</p> : null}
