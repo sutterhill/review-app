@@ -10,7 +10,6 @@ import {
 } from "../../store/comments/comments-selectors";
 import { commentsActions } from "../../store/comments/comments-slice";
 import type { AppDispatch } from "../../store/store";
-import { StreamingLine } from "../StreamingLine";
 
 interface RequestAgentReviewButtonProps {
   prReference: string;
@@ -49,7 +48,13 @@ export const RequestAgentReviewButton = ({
           ) : (
             <SparklesIcon className="size-3.5" />
           )}
-          {isRunning ? "Reviewing…" : "Request agent review"}
+          {isRunning ? (
+            <span className="block max-w-[300px] truncate font-normal">
+              {review.preview?.trim() ? review.preview : "Reviewing…"}
+            </span>
+          ) : (
+            "Request agent review"
+          )}
         </Button>
         {hasAgentThreads ? (
           <Button
@@ -66,7 +71,6 @@ export const RequestAgentReviewButton = ({
           </Button>
         ) : null}
       </div>
-      {isRunning ? <StreamingLine className="max-w-full" text={review.preview ?? ""} /> : null}
       {review.status === "failed" && review.error ? (
         <p className="text-[0.7rem] text-destructive">{review.error}</p>
       ) : null}
