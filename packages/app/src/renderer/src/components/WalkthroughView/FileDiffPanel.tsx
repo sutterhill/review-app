@@ -20,6 +20,7 @@ interface FileDiffPanelProps {
   onToggleViewed?: (path: string, viewed: boolean) => void;
   patch: string;
   prReference?: string;
+  stickyHeader?: boolean;
 }
 
 const COLLAPSED_LINES = 20;
@@ -31,6 +32,7 @@ export const FileDiffPanel = ({
   onToggleViewed,
   patch,
   prReference,
+  stickyHeader = true,
 }: FileDiffPanelProps): React.JSX.Element => {
   const [expanded, setExpanded] = useState(false);
   const [collapsed, setCollapsed] = useState(isViewed);
@@ -78,8 +80,8 @@ export const FileDiffPanel = ({
           const idx = articleRef.current ? list.indexOf(articleRef.current) : -1;
           const next = idx >= 0 ? list[idx + 1] : null;
           if (!next) return;
-          const stickyHeader = document.querySelector<HTMLElement>("[data-pr-sticky-header]");
-          const offset = stickyHeader?.offsetHeight ?? 0;
+          const pageHeader = document.querySelector<HTMLElement>("[data-pr-sticky-header]");
+          const offset = pageHeader?.offsetHeight ?? 0;
           const rect = next.getBoundingClientRect();
           window.scrollTo({
             behavior: "smooth",
@@ -97,7 +99,7 @@ export const FileDiffPanel = ({
   if (!patch) {
     return (
       <article
-        className={cn("flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
+        className={cn("relative flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
         data-file-diff-panel=""
         ref={articleRef}
         style={{ scrollMarginTop: "var(--pr-header-offset, 0px)" }}
@@ -135,6 +137,7 @@ export const FileDiffPanel = ({
         onOpen={onOpen}
         onToggleCollapsed={toggleCollapsed}
         onToggleViewed={wrappedToggleViewed}
+        sticky={stickyHeader}
       />
       <CollapseContent collapsed={collapsed}>
         <div className="relative overflow-hidden rounded-xl border border-border bg-white pt-2 [container-type:inline-size]">
@@ -200,6 +203,7 @@ interface FileNameHeaderProps {
   onOpen: (path: string) => void;
   onToggleCollapsed: () => void;
   onToggleViewed?: (path: string, viewed: boolean) => void;
+  sticky?: boolean;
 }
 
 const FileNameHeader = ({
@@ -211,10 +215,14 @@ const FileNameHeader = ({
   onOpen,
   onToggleCollapsed,
   onToggleViewed,
+  sticky = true,
 }: FileNameHeaderProps): React.JSX.Element => (
   <div
-    className="sticky z-10 flex min-w-0 items-baseline gap-1 bg-background px-1 py-1"
-    style={{ top: "var(--pr-header-offset, 0px)" }}
+    className={cn(
+      "z-10 flex min-w-0 items-baseline gap-1 bg-background px-1 py-1",
+      sticky && "sticky",
+    )}
+    style={sticky ? { top: "var(--pr-header-offset, 0px)" } : undefined}
   >
     <button
       className="group flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left"

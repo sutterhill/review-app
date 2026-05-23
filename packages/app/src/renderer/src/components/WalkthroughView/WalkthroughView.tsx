@@ -467,9 +467,9 @@ const UnlinkedFilesSection = ({
         </h2>
         <UnlinkedLayoutToggle layout={layout} onChange={onLayoutChange} />
       </div>
-      <div className="relative">
+      <div>
         <div
-          className="overflow-hidden"
+          className={cn("relative", !isExpanded && "overflow-hidden")}
           style={isExpanded ? undefined : { maxHeight: collapsedHeight }}
         >
           {layout === "masonry" ? (
@@ -496,14 +496,15 @@ const UnlinkedFilesSection = ({
                   onToggleViewed={onToggleViewed}
                   patch={patchByPath.get(file.filename) ?? ""}
                   prReference={prReference}
+                  stickyHeader={false}
                 />
               ))}
             </div>
           )}
+          {!isExpanded ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
+          ) : null}
         </div>
-        {!isExpanded ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
-        ) : null}
         {collapsible ? (
           <div className="mt-3 flex justify-center">
             <button
