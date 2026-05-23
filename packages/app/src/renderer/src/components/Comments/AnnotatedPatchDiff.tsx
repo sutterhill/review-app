@@ -91,13 +91,13 @@ export const AnnotatedPatchDiff = ({
       const metadata = annotation.metadata;
       if (metadata.kind === "thread") {
         return (
-          <div className="w-[100cqi] min-w-0 max-w-[100cqi] px-2 py-1.5 font-sans">
+          <div className="sticky left-0 z-10 w-full min-w-0 max-w-2xl px-2 py-1.5 font-sans">
             <CommentThreadView thread={metadata.thread} />
           </div>
         );
       }
       return (
-        <div className="w-[100cqi] min-w-0 max-w-[100cqi] px-2 py-1.5 font-sans">
+        <div className="sticky left-0 z-10 w-full min-w-0 max-w-2xl px-2 py-1.5 font-sans">
           <CommentComposer
             focusOnMount
             onCancel={() => setPendingRange(null)}

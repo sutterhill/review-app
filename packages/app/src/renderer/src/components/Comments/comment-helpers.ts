@@ -1,4 +1,4 @@
-import type { CommentAuthor } from "../../store/comments/comments-types";
+import type { CommentAuthor, CommentThread } from "../../store/comments/comments-types";
 
 export {
   buildAgentThread,
@@ -6,6 +6,24 @@ export {
   buildLocalThread,
   DEFAULT_AGENT_AUTHOR,
 } from "../../store/comments/comment-builder";
+
+export const formatThreadContextForClipboard = (thread: CommentThread): string => {
+  const [startLine, endLine] = thread.lineRange;
+  const lineLabel = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`;
+  const header = [
+    `PR: ${thread.prReference}`,
+    `File: ${thread.filePath} (${lineLabel})`,
+    `Side: ${thread.side === "old" ? "old (before)" : "new (after)"}`,
+  ];
+  if (thread.githubUrl) header.push(`URL: ${thread.githubUrl}`);
+
+  const body = thread.comments.map((comment) => {
+    const label = `@${comment.author.login}${comment.author.kind === "agent" ? " (agent)" : ""}`;
+    return `${label}:\n${comment.body.trim()}`;
+  });
+
+  return [...header, "", "Comment thread:", "", body.join("\n\n")].join("\n");
+};
 
 export const formatRelativeTime = (iso: string, now: number = Date.now()): string => {
   const time = Date.parse(iso);

@@ -4,7 +4,8 @@ import {
   ArrowTopRightOnSquareIcon,
   AtSymbolIcon,
   CheckIcon,
-  EllipsisHorizontalIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentIcon,
   PaperClipIcon,
   TrashIcon,
 } from "@heroicons/react/16/solid";
@@ -18,7 +19,12 @@ import { commentsActions } from "../../store/comments/comments-slice";
 import type { Comment, CommentCategory, CommentThread } from "../../store/comments/comments-types";
 import type { AppDispatch } from "../../store/store";
 import { CollapseChevron } from "../CollapseChevron";
-import { buildLocalReply, DEFAULT_USER_AUTHOR, formatRelativeTime } from "./comment-helpers";
+import {
+  buildLocalReply,
+  DEFAULT_USER_AUTHOR,
+  formatRelativeTime,
+  formatThreadContextForClipboard,
+} from "./comment-helpers";
 import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentCategoryIcon } from "./CommentCategoryIcon";
 import { CommentMarkdown } from "./CommentMarkdown";
@@ -105,6 +111,19 @@ export const CommentThreadView = ({
     }, ANIMATION_MS);
   }, [dispatch, phase, thread.id, thread.prReference]);
 
+  const handleCopyContext = useCallback(async (): Promise<boolean> => {
+    const text = formatThreadContextForClipboard(thread);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Fall through to false; surface as no-op confirmation rather than crashing.
+    }
+    return false;
+  }, [thread]);
+
   const handleReplySubmit = useCallback(
     (body: string) => {
       dispatch(
@@ -175,6 +194,7 @@ export const CommentThreadView = ({
                   hasConnector={index < thread.comments.length - 1}
                   isFirst={index === 0}
                   isResolved={thread.resolved}
+                  onCopyContext={handleCopyContext}
                   onDelete={isGithub ? undefined : handleDelete}
                   onResolve={isGithub ? undefined : handleResolve}
                 />
@@ -337,6 +357,7 @@ interface CommentItemProps {
   hasConnector: boolean;
   isFirst: boolean;
   isResolved: boolean;
+  onCopyContext: () => Promise<boolean>;
   onDelete?: () => void;
   onResolve?: () => void;
 }
@@ -346,6 +367,7 @@ const CommentItem = ({
   hasConnector,
   isFirst,
   isResolved,
+  onCopyContext,
   onDelete,
   onResolve,
 }: CommentItemProps): React.JSX.Element => (
@@ -372,45 +394,82 @@ const CommentItem = ({
       </header>
       <CommentMarkdown body={comment.body} />
     </div>
-    <CommentActionBar isResolved={isResolved} onDelete={onDelete} onResolve={onResolve} />
+    <CommentActionBar
+      isResolved={isResolved}
+      onCopyContext={onCopyContext}
+      onDelete={onDelete}
+      onResolve={onResolve}
+    />
   </article>
 );
 
 interface CommentActionBarProps {
   isResolved: boolean;
+  onCopyContext: () => Promise<boolean>;
   onDelete?: () => void;
   onResolve?: () => void;
 }
 
+const COPY_FEEDBACK_MS = 1500;
+
 const CommentActionBar = ({
   isResolved,
+  onCopyContext,
   onDelete,
   onResolve,
-}: CommentActionBarProps): React.JSX.Element => (
-  <div
-    aria-label="Comment actions"
-    className="pointer-events-none absolute top-1 right-2 z-10 flex items-center gap-0.5 rounded-md border border-border/60 bg-popover p-0.5 opacity-0 shadow-sm transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
-  >
-    {onResolve ? (
+}: CommentActionBarProps): React.JSX.Element => {
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
+
+  const handleCopy = useCallback(async () => {
+    const ok = await onCopyContext();
+    if (!ok) return;
+    setCopied(true);
+    if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
+  }, [onCopyContext]);
+
+  return (
+    <div
+      aria-label="Comment actions"
+      className="pointer-events-none absolute top-1 right-2 z-10 flex items-center gap-0.5 rounded-md border border-border/60 bg-popover p-0.5 opacity-0 shadow-sm transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
+    >
+      {onResolve ? (
+        <ActionIconButton
+          aria-label={isResolved ? "Reopen thread" : "Resolve thread"}
+          onClick={onResolve}
+        >
+          <CheckIcon
+            className={cn("size-3.5", isResolved && "text-emerald-600 dark:text-emerald-400")}
+          />
+        </ActionIconButton>
+      ) : null}
+      {onDelete ? (
+        <ActionIconButton aria-label="Delete thread" onClick={onDelete} title="Delete thread">
+          <TrashIcon className="size-3.5" />
+        </ActionIconButton>
+      ) : null}
       <ActionIconButton
-        aria-label={isResolved ? "Reopen thread" : "Resolve thread"}
-        onClick={onResolve}
+        aria-label={copied ? "Context copied" : "Copy context for agent"}
+        onClick={handleCopy}
+        title={copied ? "Copied!" : "Copy context for agent"}
       >
-        <CheckIcon
-          className={cn("size-3.5", isResolved && "text-emerald-600 dark:text-emerald-400")}
-        />
+        {copied ? (
+          <ClipboardDocumentCheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+        ) : (
+          <ClipboardDocumentIcon className="size-3.5" />
+        )}
       </ActionIconButton>
-    ) : null}
-    {onDelete ? (
-      <ActionIconButton aria-label="Delete thread" onClick={onDelete} title="Delete thread">
-        <TrashIcon className="size-3.5" />
-      </ActionIconButton>
-    ) : null}
-    <ActionIconButton aria-label="More actions" disabled>
-      <EllipsisHorizontalIcon className="size-3.5" />
-    </ActionIconButton>
-  </div>
-);
+    </div>
+  );
+};
 
 interface ActionIconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
