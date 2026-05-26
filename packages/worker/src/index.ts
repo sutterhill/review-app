@@ -1,8 +1,11 @@
 interface Env {
   CORS_ORIGIN?: string;
   DB: D1Database;
+  GITHUB_OAUTH_CLIENT_ID?: string;
+  GITHUB_OAUTH_CLIENT_SECRET?: string;
   GITHUB_TOKEN?: string;
   REVIEW_APP_API_TOKEN?: string;
+  REVIEW_APP_SESSION_SECRET?: string;
 }
 
 interface PrRow {
@@ -23,6 +26,23 @@ interface NarrativeRow {
   generated_at: string;
 }
 
+interface OAuthState {
+  expiresAt: number;
+  nonce: string;
+  returnTo: string;
+}
+
+interface OAuthSession {
+  expiresAt: number;
+  githubToken: string;
+}
+
+const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
+const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
+const GITHUB_OAUTH_SCOPE = "repo read:org";
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const OAUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
@@ -32,6 +52,18 @@ export default {
     const url = new URL(request.url);
 
     try {
+      if (request.method === "GET" && url.pathname === "/auth/github/start") {
+        return await startGitHubOAuth(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/auth/github/callback") {
+        return await finishGitHubOAuth(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/auth/session") {
+        return withCors(await getOAuthSession(request, env), env);
+      }
+
       if (url.pathname.startsWith("/api/")) {
         requireApiAuthorization(request, env);
       }
@@ -62,6 +94,101 @@ export default {
     }
   },
 };
+
+async function startGitHubOAuth(request: Request, env: Env): Promise<Response> {
+  const clientId = requireEnv(env.GITHUB_OAUTH_CLIENT_ID, "GITHUB_OAUTH_CLIENT_ID");
+  const returnTo = requireOAuthReturnTo(new URL(request.url).searchParams.get("return_to"), env);
+  const state = await sealJson<OAuthState>(
+    {
+      expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
+      nonce: crypto.randomUUID(),
+      returnTo,
+    },
+    env,
+  );
+  const authorizeUrl = new URL(GITHUB_AUTHORIZE_URL);
+  authorizeUrl.searchParams.set("client_id", clientId);
+  authorizeUrl.searchParams.set("redirect_uri", getOAuthCallbackUrl(request));
+  authorizeUrl.searchParams.set("scope", GITHUB_OAUTH_SCOPE);
+  authorizeUrl.searchParams.set("state", state);
+
+  return Response.redirect(authorizeUrl.toString(), 302);
+}
+
+async function finishGitHubOAuth(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const code = requireString(url.searchParams.get("code"), "code");
+  const state = await openJson<OAuthState>(
+    requireString(url.searchParams.get("state"), "state"),
+    env,
+  );
+
+  if (state.expiresAt < Date.now()) {
+    throw new HttpError(400, "GitHub OAuth state expired");
+  }
+
+  const githubToken = await exchangeGitHubOAuthCode(code, getOAuthCallbackUrl(request), env);
+  const session = await sealJson<OAuthSession>(
+    {
+      expiresAt: Date.now() + OAUTH_SESSION_TTL_MS,
+      githubToken,
+    },
+    env,
+  );
+  const returnUrl = new URL(state.returnTo);
+  returnUrl.searchParams.set("reviewAppSession", session);
+
+  return Response.redirect(returnUrl.toString(), 302);
+}
+
+async function getOAuthSession(request: Request, env: Env): Promise<Response> {
+  const authorization = request.headers.get("Authorization") ?? "";
+  const match = authorization.match(/^Bearer\s+(.+)$/u);
+  if (!match?.[1]) {
+    throw new HttpError(401, "Unauthorized");
+  }
+
+  const session = await openJson<OAuthSession>(match[1], env);
+  if (session.expiresAt < Date.now()) {
+    throw new HttpError(401, "GitHub OAuth session expired");
+  }
+
+  return json({ githubToken: session.githubToken });
+}
+
+async function exchangeGitHubOAuthCode(
+  code: string,
+  redirectUri: string,
+  env: Env,
+): Promise<string> {
+  const clientId = requireEnv(env.GITHUB_OAUTH_CLIENT_ID, "GITHUB_OAUTH_CLIENT_ID");
+  const clientSecret = requireEnv(env.GITHUB_OAUTH_CLIENT_SECRET, "GITHUB_OAUTH_CLIENT_SECRET");
+  const response = await fetch(GITHUB_ACCESS_TOKEN_URL, {
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+    }),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  const body = (await response.json()) as { access_token?: unknown; error_description?: unknown };
+  if (!response.ok || typeof body.access_token !== "string" || body.access_token.length === 0) {
+    throw new HttpError(
+      502,
+      typeof body.error_description === "string"
+        ? body.error_description
+        : "GitHub OAuth token exchange failed",
+    );
+  }
+
+  return body.access_token;
+}
 
 async function cachePr(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
@@ -232,6 +359,27 @@ function requireString(value: unknown, name: string): string {
   return value.trim();
 }
 
+function requireEnv(value: string | undefined, name: string): string {
+  if (!value?.trim()) {
+    throw new HttpError(500, `${name} is not configured`);
+  }
+
+  return value.trim();
+}
+
+function requireOAuthReturnTo(value: string | null, env: Env): string {
+  const fallback = requireEnv(env.CORS_ORIGIN, "CORS_ORIGIN");
+  const returnTo = value?.trim() || fallback;
+  const origin = new URL(fallback).origin;
+  const url = new URL(returnTo);
+
+  if (url.origin !== origin) {
+    throw new HttpError(400, "Invalid OAuth return URL");
+  }
+
+  return url.toString();
+}
+
 function requireInteger(value: unknown, name: string): number {
   const number = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(number) || number <= 0) {
@@ -291,6 +439,70 @@ function corsHeaders(env: Env): Record<string, string> {
   }
 
   return headers;
+}
+
+function getOAuthCallbackUrl(request: Request): string {
+  const url = new URL(request.url);
+  url.pathname = "/auth/github/callback";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+async function sealJson<Value>(value: Value, env: Env): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(value));
+  const encrypted = new Uint8Array(
+    await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, await getSessionKey(env), encoded),
+  );
+  return `${base64UrlEncode(iv)}.${base64UrlEncode(encrypted)}`;
+}
+
+async function openJson<Value>(sealed: string, env: Env): Promise<Value> {
+  const [encodedIv, encodedEncrypted, ...extra] = sealed.split(".");
+  if (!encodedIv || !encodedEncrypted || extra.length > 0) {
+    throw new HttpError(400, "Invalid sealed session");
+  }
+
+  try {
+    const iv = base64UrlDecode(encodedIv);
+    const encrypted = base64UrlDecode(encodedEncrypted);
+    const decrypted = await crypto.subtle.decrypt(
+      { iv, name: "AES-GCM" },
+      await getSessionKey(env),
+      encrypted,
+    );
+    return JSON.parse(new TextDecoder().decode(decrypted)) as Value;
+  } catch {
+    throw new HttpError(400, "Invalid sealed session");
+  }
+}
+
+async function getSessionKey(env: Env): Promise<CryptoKey> {
+  const secret = requireEnv(env.REVIEW_APP_SESSION_SECRET, "REVIEW_APP_SESSION_SECRET");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt", "encrypt"]);
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function base64UrlDecode(value: string): Uint8Array {
+  const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
 }
 
 function withCors(response: Response, env: Env): Response {

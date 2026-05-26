@@ -2,6 +2,7 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 import { all, call, put, select, takeLatest } from "redux-saga/effects";
 
 import { cloneRepository, locateRepository } from "../../../services/repo-manager";
+import { readLocalJson, writeLocalJson } from "../../../services/runtime";
 import { selectRepoEntries } from "../repos-selectors";
 import { reposActions } from "../repos-slice";
 import type {
@@ -11,9 +12,11 @@ import type {
   SavedRepoRegistry,
 } from "../repos-types";
 
+const WEB_REPO_REGISTRY_KEY = "review-app.repo-registry";
+
 export const loadRepoRegistryFromDisk = async (): Promise<SavedRepoRegistry> => {
   if (typeof window === "undefined" || !window.reviewAppRepos) {
-    throw new Error("Repo registry API is unavailable.");
+    return readLocalJson<SavedRepoRegistry>(WEB_REPO_REGISTRY_KEY, {});
   }
 
   return window.reviewAppRepos.loadRegistry();
@@ -21,7 +24,8 @@ export const loadRepoRegistryFromDisk = async (): Promise<SavedRepoRegistry> => 
 
 export const saveRepoRegistryToDisk = async (entries: SavedRepoRegistry): Promise<void> => {
   if (typeof window === "undefined" || !window.reviewAppRepos) {
-    throw new Error("Repo registry API is unavailable.");
+    writeLocalJson(WEB_REPO_REGISTRY_KEY, entries);
+    return;
   }
 
   await window.reviewAppRepos.saveRegistry(entries);
@@ -29,7 +33,7 @@ export const saveRepoRegistryToDisk = async (entries: SavedRepoRegistry): Promis
 
 export const listRepoWorktrees = async (localPath: string): Promise<RepoWorktreeEntry[]> => {
   if (typeof window === "undefined" || !window.reviewAppRepos) {
-    throw new Error("Repo registry API is unavailable.");
+    return [];
   }
 
   return window.reviewAppRepos.listWorktrees(localPath);

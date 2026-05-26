@@ -2,6 +2,7 @@ import { eventChannel, type EventChannel } from "redux-saga";
 import { all, call, put, select, take, takeEvery, takeLatest } from "redux-saga/effects";
 
 import { parsePartialJson } from "../../../services/parse-partial-json";
+import { readLocalJson, writeLocalJson } from "../../../services/runtime";
 import {
   buildWalkthroughAgentRequest,
   startWalkthroughAgentSession,
@@ -14,6 +15,8 @@ import type { PullRequestData } from "../../pr/pr-types";
 import { selectWalkthroughMessages } from "../walkthrough-selectors";
 import { walkthroughActions } from "../walkthrough-slice";
 import type { WalkthroughMessage, WalkthroughResponse } from "../walkthrough-types";
+
+const WEB_WALKTHROUGH_CACHE_KEY = "review-app.walkthrough-cache";
 
 export function createWalkthroughAgentChannel(
   request: WalkthroughAgentRequest,
@@ -29,14 +32,18 @@ export const saveWalkthroughToDisk = async (
   content: string,
 ): Promise<void> => {
   if (typeof window === "undefined" || !window.reviewAppWalkthrough) {
-    throw new Error("Walkthrough persistence API is unavailable.");
+    const cache = readLocalJson<Record<string, string>>(WEB_WALKTHROUGH_CACHE_KEY, {});
+    writeLocalJson(WEB_WALKTHROUGH_CACHE_KEY, { ...cache, [prReference]: content });
+    return;
   }
   await window.reviewAppWalkthrough.save(prReference, content);
 };
 
 export const loadWalkthroughFromDisk = async (prReference: string): Promise<null | string> => {
   if (typeof window === "undefined" || !window.reviewAppWalkthrough) {
-    throw new Error("Walkthrough persistence API is unavailable.");
+    return (
+      readLocalJson<Record<string, string>>(WEB_WALKTHROUGH_CACHE_KEY, {})[prReference] ?? null
+    );
   }
   return window.reviewAppWalkthrough.load(prReference);
 };

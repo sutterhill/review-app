@@ -13,4 +13,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   root: "src/renderer",
+  worker: {
+    format: "es",
+  },
 });
