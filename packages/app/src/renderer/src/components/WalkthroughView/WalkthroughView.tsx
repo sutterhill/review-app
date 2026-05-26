@@ -1,5 +1,5 @@
+import { Bars3Icon, Squares2X2Icon } from "@heroicons/react/16/solid";
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { ChevronDown, ChevronUp, LayoutGrid, Rows3 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -10,9 +10,12 @@ import type { PullRequestData, PullRequestFile } from "../../store/pr/pr-types";
 import type { AppDispatch } from "../../store/store";
 import { selectViewedFilesForPr } from "../../store/viewed-files/viewed-files-selectors";
 import { viewedFilesActions } from "../../store/viewed-files/viewed-files-slice";
+import { selectStreamingPreview } from "../../store/walkthrough/walkthrough-selectors";
 import type { LineRange, WalkthroughMessage } from "../../store/walkthrough/walkthrough-types";
+import { CollapseChevron } from "../CollapseChevron";
 import { DIFF_OPTIONS } from "../diff-utils";
 import { parseUnifiedDiff } from "../DiffView/diff-parser";
+import { StreamingLine } from "../StreamingLine";
 import { FileDiffPanel } from "./FileDiffPanel";
 import { FileMasonryCard } from "./FileMasonryCard";
 import { FileOverlayPanel } from "./FileOverlayPanel";
@@ -42,6 +45,7 @@ export const WalkthroughView = ({
 }: WalkthroughViewProps): React.JSX.Element => {
   const lastMessage = messages[messages.length - 1];
   const suggestedQuestions = lastMessage?.parsed?.suggestedQuestions ?? [];
+  const streamingPreview = useSelector(selectStreamingPreview);
   const allSteps = useMemo(() => collectSteps(messages), [messages]);
   const [activeStepKey, setActiveStepKey] = useState<null | string>(allSteps[0]?.key ?? null);
   const [selectedPath, setSelectedPath] = useState<null | string>(null);
@@ -269,8 +273,9 @@ export const WalkthroughView = ({
     >
       <div className="relative" ref={splitContainerRef}>
         {messages.length === 0 ? (
-          <div className="px-8 pt-8 pb-4">
+          <div className="flex flex-col gap-3 px-8 pt-8 pb-4">
             <DescriptionSkeleton />
+            {isStreaming ? <StreamingLine text={streamingPreview} /> : null}
           </div>
         ) : null}
         {messages.map((message, messageIndex) => {
@@ -316,6 +321,7 @@ export const WalkthroughView = ({
                 />
                 {messageIsLoading ? (
                   <div className="flex flex-col gap-12 px-8 py-6 lg:col-start-1">
+                    <StreamingLine text={streamingPreview} />
                     <StepSkeleton />
                     <StepSkeleton />
                     <StepSkeleton />
@@ -353,6 +359,7 @@ export const WalkthroughView = ({
                                 onOpen={setSelectedPath}
                                 onToggleViewed={handleToggleViewed}
                                 patch={patchByPath.get(file.filename) ?? ""}
+                                prReference={prReference}
                               />
                             ))}
                           </div>
@@ -377,6 +384,7 @@ export const WalkthroughView = ({
                 onToggleExpanded={() => toggleUnlinkedExpanded(message.id)}
                 onToggleViewed={handleToggleViewed}
                 patchByPath={patchByPath}
+                prReference={prReference}
                 selectedPath={selectedPath}
                 viewedSet={viewedSet}
               />
@@ -422,6 +430,7 @@ interface UnlinkedFilesSectionProps {
   onToggleExpanded: () => void;
   onToggleViewed: (path: string, viewed: boolean) => void;
   patchByPath: ReadonlyMap<string, string>;
+  prReference: string;
   selectedPath: null | string;
   viewedSet: ReadonlySet<string>;
 }
@@ -436,6 +445,7 @@ const UnlinkedFilesSection = ({
   onToggleExpanded,
   onToggleViewed,
   patchByPath,
+  prReference,
   selectedPath,
   viewedSet,
 }: UnlinkedFilesSectionProps): null | React.JSX.Element => {
@@ -457,9 +467,9 @@ const UnlinkedFilesSection = ({
         </h2>
         <UnlinkedLayoutToggle layout={layout} onChange={onLayoutChange} />
       </div>
-      <div className="relative">
+      <div>
         <div
-          className="overflow-hidden"
+          className={cn("relative", !isExpanded && "overflow-hidden")}
           style={isExpanded ? undefined : { maxHeight: collapsedHeight }}
         >
           {layout === "masonry" ? (
@@ -485,14 +495,16 @@ const UnlinkedFilesSection = ({
                   onOpen={onOpen}
                   onToggleViewed={onToggleViewed}
                   patch={patchByPath.get(file.filename) ?? ""}
+                  prReference={prReference}
+                  stickyHeader={false}
                 />
               ))}
             </div>
           )}
+          {!isExpanded ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
+          ) : null}
         </div>
-        {!isExpanded ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
-        ) : null}
         {collapsible ? (
           <div className="mt-3 flex justify-center">
             <button
@@ -504,11 +516,7 @@ const UnlinkedFilesSection = ({
               onClick={onToggleExpanded}
               type="button"
             >
-              {isExpanded ? (
-                <ChevronUp className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
+              <CollapseChevron className="h-3.5 w-3.5" collapsed={!isExpanded} />
               {isExpanded ? "Show less" : `Show ${files.length} files`}
             </button>
           </div>
@@ -543,7 +551,7 @@ const UnlinkedLayoutToggle = ({
         onClick={() => onChange("masonry")}
         type="button"
       >
-        <LayoutGrid className="h-3.5 w-3.5" />
+        <Squares2X2Icon className="h-3.5 w-3.5" />
       </button>
       <button
         aria-label="Stacked layout"
@@ -556,7 +564,7 @@ const UnlinkedLayoutToggle = ({
         onClick={() => onChange("stacked")}
         type="button"
       >
-        <Rows3 className="h-3.5 w-3.5" />
+        <Bars3Icon className="h-3.5 w-3.5" />
       </button>
     </div>
   );

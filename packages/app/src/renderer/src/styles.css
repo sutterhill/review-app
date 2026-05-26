@@ -114,6 +114,20 @@
   inherits: false;
 }
 
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-caret-blink {
+  animation: caret-blink 1s steps(1) infinite;
+}
+
 @keyframes cube-rotate {
   from {
     --cube-rotateX: 0deg;

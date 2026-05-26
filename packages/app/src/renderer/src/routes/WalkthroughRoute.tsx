@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowPathIcon } from "@heroicons/react/16/solid";
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router";
@@ -66,7 +66,7 @@ export const WalkthroughRoute = (): React.JSX.Element => {
           size="icon-xs"
           variant="ghost"
         >
-          <RefreshCw />
+          <ArrowPathIcon />
         </Button>
       </div>
       {error && messages.length === 0 ? (

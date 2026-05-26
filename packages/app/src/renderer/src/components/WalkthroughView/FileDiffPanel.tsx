@@ -1,10 +1,16 @@
+import { CheckIcon } from "@heroicons/react/16/solid";
 import { PatchDiff } from "@pierre/diffs/react";
-import { Check } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 
 import { cn } from "@/lib/utils";
 
+import { selectThreadsForFile } from "../../store/comments/comments-selectors";
 import type { PullRequestFile } from "../../store/pr/pr-types";
+import { CollapseChevron } from "../CollapseChevron";
+import { CollapseContent } from "../CollapseContent";
+import { AnnotatedPatchDiff } from "../Comments/AnnotatedPatchDiff";
+import { CommentCategoryIconStack } from "../Comments/CommentCategoryIcon";
 import { SNIPPET_DIFF_OPTIONS } from "../diff-utils";
 
 interface FileDiffPanelProps {
@@ -13,6 +19,8 @@ interface FileDiffPanelProps {
   onOpen: (path: string) => void;
   onToggleViewed?: (path: string, viewed: boolean) => void;
   patch: string;
+  prReference?: string;
+  stickyHeader?: boolean;
 }
 
 const COLLAPSED_LINES = 20;
@@ -23,8 +31,11 @@ export const FileDiffPanel = ({
   onOpen,
   onToggleViewed,
   patch,
+  prReference,
+  stickyHeader = true,
 }: FileDiffPanelProps): React.JSX.Element => {
   const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(isViewed);
   const articleRef = useRef<HTMLElement>(null);
   const fileName = file.filename.split("/").pop() ?? file.filename;
   const directory = file.filename
@@ -37,10 +48,29 @@ export const FileDiffPanel = ({
     () => (expanded || !overflows ? patch : truncatePatch(patch, COLLAPSED_LINES)),
     [expanded, overflows, patch],
   );
+  const maxVisibleNewLine = useMemo(
+    () => (overflows && !expanded ? maxNewLineInPatch(visiblePatch) : Infinity),
+    [overflows, expanded, visiblePatch],
+  );
+  const fileThreads = useSelector(selectThreadsForFile(prReference ?? "", file.filename));
+  const hiddenThreadStackItems = useMemo(() => {
+    if (!overflows || expanded || !prReference) return [];
+    return fileThreads
+      .filter((thread) => !thread.resolved && thread.lineRange[1] > maxVisibleNewLine)
+      .map((thread) => ({
+        category: thread.category ?? thread.comments[0]?.category,
+        isGithub: thread.source === "github",
+      }));
+  }, [overflows, expanded, prReference, fileThreads, maxVisibleNewLine]);
+
+  useEffect(() => {
+    setCollapsed(isViewed);
+  }, [isViewed]);
 
   const handleToggleViewed = useCallback(
     (filename: string, viewed: boolean) => {
       onToggleViewed?.(filename, viewed);
+      setCollapsed(viewed);
       if (!viewed) return;
       setExpanded(false);
       requestAnimationFrame(() => {
@@ -50,8 +80,8 @@ export const FileDiffPanel = ({
           const idx = articleRef.current ? list.indexOf(articleRef.current) : -1;
           const next = idx >= 0 ? list[idx + 1] : null;
           if (!next) return;
-          const stickyHeader = document.querySelector<HTMLElement>("[data-pr-sticky-header]");
-          const offset = stickyHeader?.offsetHeight ?? 0;
+          const pageHeader = document.querySelector<HTMLElement>("[data-pr-sticky-header]");
+          const offset = pageHeader?.offsetHeight ?? 0;
           const rect = next.getBoundingClientRect();
           window.scrollTo({
             behavior: "smooth",
@@ -64,24 +94,29 @@ export const FileDiffPanel = ({
   );
 
   const wrappedToggleViewed = onToggleViewed ? handleToggleViewed : undefined;
+  const toggleCollapsed = useCallback(() => setCollapsed((value) => !value), []);
 
   if (!patch) {
     return (
       <article
-        className={cn("flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
+        className={cn("relative flex flex-col gap-2 rounded-md", isViewed && "opacity-60")}
         data-file-diff-panel=""
         ref={articleRef}
         style={{ scrollMarginTop: "var(--pr-header-offset, 0px)" }}
       >
         <FileNameHeader
+          collapsed={collapsed}
           directory={directory}
           file={file}
           fileName={fileName}
           isViewed={isViewed}
           onOpen={onOpen}
+          onToggleCollapsed={toggleCollapsed}
           onToggleViewed={wrappedToggleViewed}
         />
-        <p className="px-1 text-xs text-muted-foreground">No textual diff for this file.</p>
+        <CollapseContent collapsed={collapsed}>
+          <p className="px-1 text-xs text-muted-foreground">No textual diff for this file.</p>
+        </CollapseContent>
       </article>
     );
   }
@@ -94,60 +129,111 @@ export const FileDiffPanel = ({
       style={{ scrollMarginTop: "var(--pr-header-offset, 0px)" }}
     >
       <FileNameHeader
+        collapsed={collapsed}
         directory={directory}
         file={file}
         fileName={fileName}
         isViewed={isViewed}
         onOpen={onOpen}
+        onToggleCollapsed={toggleCollapsed}
         onToggleViewed={wrappedToggleViewed}
+        sticky={stickyHeader}
       />
-      <div className="relative overflow-hidden rounded-md border border-border/40 bg-white pt-2">
-        <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={visiblePatch} />
-      </div>
-      {overflows ? (
+      <CollapseContent collapsed={collapsed}>
+        <div className="relative overflow-hidden rounded-xl border border-border bg-white pt-2 [container-type:inline-size]">
+          {prReference ? (
+            <AnnotatedPatchDiffForFile
+              filePath={file.filename}
+              options={SNIPPET_DIFF_OPTIONS}
+              patch={visiblePatch}
+              prReference={prReference}
+            />
+          ) : (
+            <PatchDiff options={SNIPPET_DIFF_OPTIONS} patch={visiblePatch} />
+          )}
+        </div>
+      </CollapseContent>
+      {!collapsed && overflows ? (
         <button
-          className="sticky bottom-0 left-0 z-10 -mt-2 flex w-full cursor-pointer items-center justify-center rounded-b-md bg-background/95 px-2 py-0.5 text-[0.7rem] text-muted-foreground backdrop-blur-sm hover:text-foreground"
+          className="sticky bottom-0 left-0 z-10 -mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-b-xl bg-background/95 px-2 py-0.5 text-[0.7rem] text-muted-foreground backdrop-blur-sm hover:text-foreground"
           onClick={() => setExpanded((value) => !value)}
           type="button"
         >
-          {expanded ? "Show less" : `+ ${hiddenCount} more lines`}
+          <span>{expanded ? "Show less" : `+ ${hiddenCount} more lines`}</span>
+          {!expanded && hiddenThreadStackItems.length > 0 ? (
+            <CommentCategoryIconStack items={hiddenThreadStackItems} />
+          ) : null}
         </button>
       ) : null}
     </article>
   );
 };
 
+interface AnnotatedPatchDiffForFileProps {
+  filePath: string;
+  options: React.ComponentProps<typeof AnnotatedPatchDiff>["options"];
+  patch: string;
+  prReference: string;
+}
+
+const AnnotatedPatchDiffForFile = ({
+  filePath,
+  options,
+  patch,
+  prReference,
+}: AnnotatedPatchDiffForFileProps): React.JSX.Element => {
+  const threads = useSelector(selectThreadsForFile(prReference, filePath));
+  return (
+    <AnnotatedPatchDiff
+      filePath={filePath}
+      options={options}
+      patch={patch}
+      prReference={prReference}
+      threads={threads}
+    />
+  );
+};
+
 interface FileNameHeaderProps {
+  collapsed: boolean;
   directory: string;
   file: PullRequestFile;
   fileName: string;
   isViewed: boolean;
   onOpen: (path: string) => void;
+  onToggleCollapsed: () => void;
   onToggleViewed?: (path: string, viewed: boolean) => void;
+  sticky?: boolean;
 }
 
 const FileNameHeader = ({
+  collapsed,
   directory,
   file,
   fileName,
   isViewed,
   onOpen,
+  onToggleCollapsed,
   onToggleViewed,
+  sticky = true,
 }: FileNameHeaderProps): React.JSX.Element => (
   <div
-    className="sticky z-10 flex min-w-0 items-baseline gap-2 bg-background px-1 py-1"
-    style={{ top: "var(--pr-header-offset, 0px)" }}
+    className={cn(
+      "z-10 flex min-w-0 items-baseline gap-1 bg-background px-1 py-1",
+      sticky && "sticky",
+    )}
+    style={sticky ? { top: "var(--pr-header-offset, 0px)" } : undefined}
   >
     <button
       className="group flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left"
       onClick={() => onOpen(file.filename)}
       type="button"
     >
-      <span className="min-w-0 truncate text-[0.78rem] font-medium text-foreground group-hover:underline">
+      <span className="min-w-0 truncate text-sm font-medium text-foreground group-hover:underline">
         {fileName}
       </span>
       {directory ? (
-        <span className="min-w-0 truncate text-[0.7rem] text-muted-foreground">{directory}</span>
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{directory}</span>
       ) : null}
     </button>
     <span className="flex shrink-0 items-center gap-2 text-[0.7rem]">
@@ -161,17 +247,47 @@ const FileNameHeader = ({
             "ml-1 inline-flex size-4 cursor-pointer items-center justify-center rounded-sm border transition-colors",
             isViewed
               ? "border-foreground bg-foreground text-background"
-              : "border-border/60 bg-transparent text-muted-foreground hover:text-foreground",
+              : "border-border bg-transparent text-muted-foreground hover:text-foreground",
           )}
           onClick={() => onToggleViewed(file.filename, !isViewed)}
           type="button"
         >
-          {isViewed ? <Check className="size-3" /> : null}
+          {isViewed ? <CheckIcon className="size-3" /> : null}
         </button>
       ) : null}
+      <button
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Expand file diff" : "Collapse file diff"}
+        className="ml-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center self-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+        onClick={onToggleCollapsed}
+        type="button"
+      >
+        <CollapseChevron className="size-3.5" collapsed={collapsed} />
+      </button>
     </span>
   </div>
 );
+
+const NEW_LINE_HUNK_HEADER_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u;
+
+const maxNewLineInPatch = (patch: string): number => {
+  if (!patch) return 0;
+  let maxLine = 0;
+  let current = 0;
+  for (const line of patch.split("\n")) {
+    const header = NEW_LINE_HUNK_HEADER_RE.exec(line);
+    if (header) {
+      current = Number(header[1]) - 1;
+      continue;
+    }
+    const tag = line[0];
+    if (tag === "+" || tag === " ") {
+      current++;
+      if (current > maxLine) maxLine = current;
+    }
+  }
+  return maxLine;
+};
 
 const countDiffRows = (patch: string): number => {
   if (!patch) return 0;

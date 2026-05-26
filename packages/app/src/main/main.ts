@@ -5,10 +5,13 @@ import { promisify } from "node:util";
 
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 
+import { loadComments, saveComments } from "./comments-storage";
 import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
 import { loadNarrative, saveNarrative } from "./narrative-storage";
 import { abortOrchestratorAgentSession, runOrchestratorAgentSession } from "./orchestrator-agent";
+import { abortReplyAgentSession, generateReplyAgentSession } from "./reply-agent";
 import { loadRepoRegistry, saveRepoRegistry, type RepoRegistryData } from "./repo-registry-storage";
+import { abortReviewAgentSession, generateReviewAgentSession } from "./review-agent";
 import { loadViewedFiles, saveViewedFiles } from "./viewed-files-storage";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -220,6 +223,22 @@ ipcMain.handle("viewed-files:save", async (_event, prReference: unknown, paths: 
   );
 });
 
+ipcMain.handle("comments:load", async (_event, prReference: unknown) => {
+  if (typeof prReference !== "string") {
+    throw new Error("Invalid comments load request.");
+  }
+
+  return loadComments(prReference);
+});
+
+ipcMain.handle("comments:save", async (_event, prReference: unknown, threads: unknown) => {
+  if (typeof prReference !== "string" || !Array.isArray(threads)) {
+    throw new Error("Invalid comments save request.");
+  }
+
+  await saveComments(prReference, threads);
+});
+
 ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: unknown) => {
   if (typeof requestId !== "string" || !isOrchestratorSessionRequest(request)) {
     throw new Error("Invalid orchestrator session request.");
@@ -231,6 +250,34 @@ ipcMain.handle("orchestrator:run", async (event, requestId: unknown, request: un
 ipcMain.handle("orchestrator:abort", async (_event, requestId: unknown) => {
   if (typeof requestId === "string") {
     await abortOrchestratorAgentSession(requestId);
+  }
+});
+
+ipcMain.handle("review-agent:run", async (event, requestId: unknown, request: unknown) => {
+  if (typeof requestId !== "string" || !isReviewAgentRequest(request)) {
+    throw new Error("Invalid review agent request.");
+  }
+
+  await generateReviewAgentSession(requestId, request, event.sender);
+});
+
+ipcMain.handle("review-agent:abort", async (_event, requestId: unknown) => {
+  if (typeof requestId === "string") {
+    await abortReviewAgentSession(requestId);
+  }
+});
+
+ipcMain.handle("reply-agent:run", async (event, requestId: unknown, request: unknown) => {
+  if (typeof requestId !== "string" || !isReplyAgentRequest(request)) {
+    throw new Error("Invalid reply agent request.");
+  }
+
+  await generateReplyAgentSession(requestId, request, event.sender);
+});
+
+ipcMain.handle("reply-agent:abort", async (_event, requestId: unknown) => {
+  if (typeof requestId === "string") {
+    await abortReplyAgentSession(requestId);
   }
 });
 
@@ -276,6 +323,41 @@ const isNarrativeRequest = (
 
   const candidate = request as { groups?: unknown; metadata?: unknown };
   return Array.isArray(candidate.groups) && !!candidate.metadata;
+};
+
+const isReviewAgentRequest = (
+  request: unknown,
+): request is Parameters<typeof generateReviewAgentSession>[1] => {
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+
+  const candidate = request as { files?: unknown; metadata?: unknown };
+  return Array.isArray(candidate.files) && !!candidate.metadata;
+};
+
+const isReplyAgentRequest = (
+  request: unknown,
+): request is Parameters<typeof generateReplyAgentSession>[1] => {
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+
+  const candidate = request as {
+    comments?: unknown;
+    filePath?: unknown;
+    lineEnd?: unknown;
+    lineStart?: unknown;
+    pr?: unknown;
+  };
+  return (
+    Array.isArray(candidate.comments) &&
+    typeof candidate.filePath === "string" &&
+    typeof candidate.lineStart === "number" &&
+    typeof candidate.lineEnd === "number" &&
+    !!candidate.pr &&
+    typeof candidate.pr === "object"
+  );
 };
 
 const isOrchestratorSessionRequest = (
