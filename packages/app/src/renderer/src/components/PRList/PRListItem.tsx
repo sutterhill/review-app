@@ -52,7 +52,7 @@ const PullRequestIcon = ({ className }: { className?: string }): React.JSX.Eleme
   </svg>
 );
 
-export const ASIDE_DRAG_TYPE = "text/plain";
+export const ASIDE_DRAG_TYPE = "application/x-review-app-aside-pr";
 
 export type AsideCardAction = "set" | "remove";
 

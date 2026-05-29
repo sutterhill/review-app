@@ -12,7 +12,7 @@ vi.mock("@/lib/view-transition", () => ({
   sanitizeViewTransitionName: (value: string) => `pr-${value}`,
 }));
 vi.mock("../PRList/PRListItem", () => ({
-  ASIDE_DRAG_TYPE: "text/plain",
+  ASIDE_DRAG_TYPE: "application/x-review-app-aside-pr",
   PRListItem: ({ pullRequest }: { pullRequest: PullRequestSummary }) => (
     <div data-reference={pullRequest.reference}>{pullRequest.title}</div>
   ),
@@ -33,8 +33,8 @@ vi.mock("@/components/ui/button", () => ({
 vi.mock("@/components/ui/separator", () => ({ Separator: () => <hr /> }));
 vi.mock("@/components/ui/skeleton", () => ({ Skeleton: () => <div /> }));
 
-import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
+import { Provider } from "react-redux";
 
 import { asideActions, asideReducer } from "../../store/aside/aside-slice";
 import { prReducer } from "../../store/pr/pr-slice";

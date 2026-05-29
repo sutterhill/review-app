@@ -12,7 +12,9 @@ export const asideSlice = createSlice({
   name: "aside",
   reducers: {
     hydrateAside(state, action: PayloadAction<string[]>) {
-      state.references = dedupe(action.payload);
+      // Merge persisted references with anything already in state so that
+      // setAside calls made during the initial loadAside window are preserved.
+      state.references = dedupe([...action.payload, ...state.references]);
       state.status = "ready";
     },
     loadAside(state) {

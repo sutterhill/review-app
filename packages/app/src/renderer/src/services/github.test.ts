@@ -226,6 +226,51 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
     ]);
   });
 
+  it("ignores COMMENTED and PENDING reviews when computing the review decision", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/11/reviews")) {
+        return jsonResponse([
+          {
+            state: "COMMENTED",
+            submitted_at: "2026-05-21T00:00:00.000Z",
+            user: { login: "reviewer" },
+          },
+          {
+            state: "PENDING",
+            submitted_at: "2026-05-22T00:00:00.000Z",
+            user: { login: "other" },
+          },
+        ]);
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/11")) {
+        return jsonResponse({ head: { ref: "feature-branch" } });
+      }
+
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/11",
+            number: 11,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "Commented only",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+        ],
+      });
+    });
+
+    await expect(fetchOpenPullRequestsFromGitHub()).resolves.toMatchObject([
+      { isDraft: false, number: 11, reviewDecision: null },
+    ]);
+  });
+
   it("defaults reviewDecision to null when the reviews request fails", async () => {
     vi.mocked(getGitHubToken).mockResolvedValue("github-token");
     mockFetch((url) => {

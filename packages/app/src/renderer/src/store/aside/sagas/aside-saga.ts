@@ -19,13 +19,22 @@ export const saveAsideToDisk = async (references: string[]): Promise<void> => {
 };
 
 export function* loadAsideSaga(): Generator {
-  const references = (yield call(loadAsideFromDisk)) as string[];
-  yield put(asideActions.hydrateAside(references));
+  try {
+    const references = (yield call(loadAsideFromDisk)) as string[];
+    yield put(asideActions.hydrateAside(references));
+  } catch (error) {
+    console.warn("aside: failed to load references from disk", error);
+    yield put(asideActions.hydrateAside([]));
+  }
 }
 
 export function* persistAsideSaga(_action: PayloadAction<string>): Generator {
   const references = (yield select(selectAsideReferences)) as string[];
-  yield call(saveAsideToDisk, references);
+  try {
+    yield call(saveAsideToDisk, references);
+  } catch (error) {
+    console.warn("aside: failed to persist references to disk", error);
+  }
 }
 
 export function* asideSaga(): Generator {

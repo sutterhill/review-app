@@ -1,8 +1,4 @@
-import {
-  ArrowPathIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-} from "@heroicons/react/16/solid";
+import { ArrowPathIcon, MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -169,10 +165,7 @@ export const KanbanBoard = (): React.JSX.Element => {
       >
         {isSearchOpen ? (
           <div className="col-span-full flex items-center gap-2">
-            <MagnifyingGlassIcon
-              aria-hidden
-              className="h-4 w-4 shrink-0 text-muted-foreground"
-            />
+            <MagnifyingGlassIcon aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               aria-label="Search pull requests"
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"

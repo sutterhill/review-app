@@ -54,4 +54,13 @@ describe("asideReducer", () => {
     expect(state.references).toEqual([REF, OTHER]);
     expect(state.status).toBe("ready");
   });
+
+  it("preserves references added during the loading window when hydrating", () => {
+    let state = asideReducer(undefined, asideActions.loadAside());
+    state = asideReducer(state, asideActions.setAside(OTHER));
+    state = asideReducer(state, asideActions.hydrateAside([REF]));
+
+    expect(state.references).toEqual([REF, OTHER]);
+    expect(state.status).toBe("ready");
+  });
 });

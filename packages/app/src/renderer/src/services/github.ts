@@ -390,7 +390,7 @@ const computeReviewDecision = (
   const decisions = [...latestByReviewer.values()];
   if (decisions.includes("CHANGES_REQUESTED")) return "changes_requested";
   if (decisions.includes("APPROVED")) return "approved";
-  if (requestedReviewerCount > 0 || reviews.length > 0) return "review_required";
+  if (requestedReviewerCount > 0 || decisions.length > 0) return "review_required";
   return null;
 };
 

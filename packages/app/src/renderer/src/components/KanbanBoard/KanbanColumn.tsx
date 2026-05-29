@@ -204,7 +204,9 @@ const SUB_GROUP_HEADER_CLASS =
   "text-[10px] font-medium uppercase tracking-wide leading-4 text-muted-foreground";
 
 const SubGroupHeaderPlaceholder = (): React.JSX.Element => (
-  <h3 aria-hidden className={SUB_GROUP_HEADER_CLASS}>{"\u00A0"}</h3>
+  <h3 aria-hidden className={SUB_GROUP_HEADER_CLASS}>
+    {"\u00A0"}
+  </h3>
 );
 
 const SubGroup = ({
