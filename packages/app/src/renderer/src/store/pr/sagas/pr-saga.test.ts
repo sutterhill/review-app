@@ -7,6 +7,7 @@ import {
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
+  fetchWaitingPullRequestsFromGitHub,
 } from "../../../services/github";
 import { generateLocalDiff } from "../../../services/repo-manager";
 import { selectRepoEntries } from "../../repos/repos-selectors";
@@ -18,6 +19,7 @@ import {
   fetchMyPullRequestsSaga,
   fetchOpenPullRequestsSaga,
   fetchPrSaga,
+  fetchWaitingPullRequestsSaga,
 } from "./pr-saga";
 
 const pullRequest: PullRequestData = {
@@ -47,11 +49,13 @@ const summary: PullRequestSummary = {
   author: { avatarUrl: null, login: "octocat", url: "" },
   headRefName: "feature-branch",
   htmlUrl: "https://github.com/acme/repo/pull/1",
+  isDraft: false,
   number: 1,
   owner: "acme",
   reference: "acme/repo#1",
   repo: "repo",
   repositoryName: "acme/repo",
+  reviewDecision: null,
   title: "Add app value",
   updatedAt: "2026-05-20T00:00:00.000Z",
 };
@@ -137,6 +141,33 @@ describe("prSaga", () => {
     expect(generator.next().value).toEqual(call(fetchMyPullRequestsFromGitHub));
     expect(generator.next([summary]).value).toEqual(
       put(prActions.fetchMyPullRequestsSucceeded([summary])),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("fetches waiting pull request summaries for both sections", () => {
+    const generator = fetchWaitingPullRequestsSaga();
+    const waiting = { readyToMerge: [summary], waitingOnAuthor: [summary] };
+
+    expect(generator.next().value).toEqual(call(fetchWaitingPullRequestsFromGitHub));
+    expect(generator.next(waiting).value).toEqual(
+      put(prActions.fetchWaitingPullRequestsSucceeded(waiting)),
+    );
+    expect(generator.next().done).toBe(true);
+  });
+
+  it("surfaces waiting pull request failures", () => {
+    const generator = fetchWaitingPullRequestsSaga();
+
+    expect(generator.next().value).toEqual(call(fetchWaitingPullRequestsFromGitHub));
+    expect(generator.throw(new GitHubApiError("rate_limited", "Slow down.", 403)).value).toEqual(
+      put(
+        prActions.fetchWaitingPullRequestsFailed({
+          code: "rate_limited",
+          message: "Slow down.",
+          status: 403,
+        }),
+      ),
     );
     expect(generator.next().done).toBe(true);
   });

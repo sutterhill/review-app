@@ -12,6 +12,10 @@ describe("prReducer", () => {
     expect(state.myPullRequests).toEqual([]);
     expect(state.myPullRequestsStatus).toBe("idle");
     expect(state.prListMode).toBe("needs-review");
+    expect(state.readyToMergePullRequests).toEqual([]);
+    expect(state.waitingOnAuthorPullRequests).toEqual([]);
+    expect(state.waitingStatus).toBe("idle");
+    expect(state.waitingError).toBeNull();
   });
 
   it("tracks fetch requests without retaining stale data", () => {
@@ -66,11 +70,13 @@ describe("prReducer", () => {
           author: { avatarUrl: null, login: "octocat", url: "" },
           headRefName: "feature-branch",
           htmlUrl: "https://github.com/acme/repo/pull/1",
+          isDraft: false,
           number: 1,
           owner: "acme",
           reference: "acme/repo#1",
           repo: "repo",
           repositoryName: "acme/repo",
+          reviewDecision: null,
           title: "Add app value",
           updatedAt: "2026-05-20T00:00:00.000Z",
         },
@@ -80,6 +86,59 @@ describe("prReducer", () => {
     expect(state.myPullRequests).toHaveLength(1);
     expect(state.myPullRequestsError).toBeNull();
     expect(state.myPullRequestsStatus).toBe("succeeded");
+  });
+
+  it("tracks waiting pull request loading separately", () => {
+    const state = prReducer(undefined, prActions.fetchWaitingPullRequests());
+
+    expect(state.waitingStatus).toBe("loading");
+    expect(state.waitingError).toBeNull();
+  });
+
+  it("stores waiting pull request results in both sections", () => {
+    const readyToMerge = {
+      author: { avatarUrl: null, login: "octocat", url: "" },
+      headRefName: "feature-branch",
+      htmlUrl: "https://github.com/acme/repo/pull/1",
+      isDraft: false,
+      number: 1,
+      owner: "acme",
+      reference: "acme/repo#1",
+      repo: "repo",
+      repositoryName: "acme/repo",
+      reviewDecision: null,
+      title: "Add app value",
+      updatedAt: "2026-05-20T00:00:00.000Z",
+    };
+    const waitingOnAuthor = {
+      ...readyToMerge,
+      number: 2,
+      reference: "acme/repo#2",
+      title: "Fix app value",
+    };
+
+    const state = prReducer(
+      undefined,
+      prActions.fetchWaitingPullRequestsSucceeded({
+        readyToMerge: [readyToMerge],
+        waitingOnAuthor: [waitingOnAuthor],
+      }),
+    );
+
+    expect(state.readyToMergePullRequests).toEqual([readyToMerge]);
+    expect(state.waitingOnAuthorPullRequests).toEqual([waitingOnAuthor]);
+    expect(state.waitingError).toBeNull();
+    expect(state.waitingStatus).toBe("succeeded");
+  });
+
+  it("records waiting pull request failures", () => {
+    const state = prReducer(
+      undefined,
+      prActions.fetchWaitingPullRequestsFailed({ code: "rate_limited", message: "Slow down." }),
+    );
+
+    expect(state.waitingStatus).toBe("failed");
+    expect(state.waitingError).toEqual({ code: "rate_limited", message: "Slow down." });
   });
 
   it("stores the selected PR list mode", () => {

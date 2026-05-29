@@ -151,6 +151,18 @@ contextBridge.exposeInMainWorld("reviewAppViewedFiles", {
   },
 });
 
+contextBridge.exposeInMainWorld("reviewAppAside", {
+  load: async (): Promise<string[]> => {
+    const result = await ipcRenderer.invoke("aside:load");
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === "string")
+      : [];
+  },
+  save: async (references: string[]): Promise<void> => {
+    await ipcRenderer.invoke("aside:save", references);
+  },
+});
+
 contextBridge.exposeInMainWorld("reviewAppComments", {
   load: async (prReference: string): Promise<unknown[]> => {
     const result = await ipcRenderer.invoke("comments:load", prReference);

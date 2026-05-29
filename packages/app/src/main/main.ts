@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 
+import { loadAside, saveAside } from "./aside-storage";
 import { loadComments, saveComments } from "./comments-storage";
 import { abortNarrativeAgentSession, generateNarrativeAgentSession } from "./narrative-agent";
 import { loadNarrative, saveNarrative } from "./narrative-storage";
@@ -221,6 +222,16 @@ ipcMain.handle("viewed-files:save", async (_event, prReference: unknown, paths: 
     prReference,
     paths.filter((value): value is string => typeof value === "string"),
   );
+});
+
+ipcMain.handle("aside:load", async () => loadAside());
+
+ipcMain.handle("aside:save", async (_event, references: unknown) => {
+  if (!Array.isArray(references)) {
+    throw new Error("Invalid aside save request.");
+  }
+
+  await saveAside(references.filter((value): value is string => typeof value === "string"));
 });
 
 ipcMain.handle("comments:load", async (_event, prReference: unknown) => {

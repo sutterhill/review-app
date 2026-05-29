@@ -56,6 +56,10 @@ declare global {
       load: (prReference: string) => Promise<string[]>;
       save: (prReference: string, paths: string[]) => Promise<void>;
     };
+    reviewAppAside: {
+      load: () => Promise<string[]>;
+      save: (references: string[]) => Promise<void>;
+    };
     reviewAppComments: {
       load: (prReference: string) => Promise<unknown[]>;
       save: (prReference: string, threads: unknown[]) => Promise<void>;

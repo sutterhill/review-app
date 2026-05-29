@@ -139,6 +139,10 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         return jsonResponse({ login: "octocat" });
       }
 
+      if (url.endsWith("/repos/acme/repo/pulls/5/reviews")) {
+        return jsonResponse([]);
+      }
+
       if (url.endsWith("/repos/acme/repo/pulls/5")) {
         return jsonResponse({ head: { ref: "feature-branch" } });
       }
@@ -164,14 +168,95 @@ describe("fetchOpenPullRequestsFromGitHub", () => {
         author: { avatarUrl: null, login: "octocat", url: "https://github.com/octocat" },
         headRefName: "feature-branch",
         htmlUrl: "https://github.com/acme/repo/pull/5",
+        isDraft: false,
         number: 5,
         owner: "acme",
         reference: "acme/repo#5",
         repo: "repo",
         repositoryName: "acme/repo",
+        reviewDecision: null,
         title: "Open change",
         updatedAt: "2026-05-21T00:00:00.000Z",
       },
+    ]);
+  });
+
+  it("derives isDraft and reviewDecision from the pull and its reviews", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/8/reviews")) {
+        return jsonResponse([
+          {
+            state: "CHANGES_REQUESTED",
+            submitted_at: "2026-05-21T00:00:00.000Z",
+            user: { login: "reviewer" },
+          },
+          {
+            state: "APPROVED",
+            submitted_at: "2026-05-22T00:00:00.000Z",
+            user: { login: "reviewer" },
+          },
+        ]);
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/8")) {
+        return jsonResponse({ draft: true, head: { ref: "feature-branch" } });
+      }
+
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/8",
+            number: 8,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "Draft change",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+        ],
+      });
+    });
+
+    await expect(fetchOpenPullRequestsFromGitHub()).resolves.toMatchObject([
+      { isDraft: true, number: 8, reviewDecision: "approved" },
+    ]);
+  });
+
+  it("defaults reviewDecision to null when the reviews request fails", async () => {
+    vi.mocked(getGitHubToken).mockResolvedValue("github-token");
+    mockFetch((url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octocat" });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/9/reviews")) {
+        return jsonResponse({ message: "Server error" }, { status: 500 });
+      }
+
+      if (url.endsWith("/repos/acme/repo/pulls/9")) {
+        return jsonResponse({ head: { ref: "feature-branch" } });
+      }
+
+      return jsonResponse({
+        items: [
+          {
+            html_url: "https://github.com/acme/repo/pull/9",
+            number: 9,
+            repository_url: "https://api.github.com/repos/acme/repo",
+            title: "Open change",
+            updated_at: "2026-05-21T00:00:00.000Z",
+            user: { avatar_url: null, html_url: "https://github.com/octocat", login: "octocat" },
+          },
+        ],
+      });
+    });
+
+    await expect(fetchOpenPullRequestsFromGitHub()).resolves.toMatchObject([
+      { isDraft: false, number: 9, reviewDecision: null },
     ]);
   });
 });

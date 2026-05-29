@@ -22,8 +22,12 @@ const initialState: PrState = {
   openPullRequestsError: null,
   openPullRequestsStatus: "idle",
   prListMode: "needs-review",
+  readyToMergePullRequests: [],
   reference: "",
   status: "idle",
+  waitingError: null,
+  waitingOnAuthorPullRequests: [],
+  waitingStatus: "idle",
 };
 
 export const prSlice = createSlice({
@@ -88,6 +92,26 @@ export const prSlice = createSlice({
       state.myPullRequests = action.payload;
       state.myPullRequestsError = null;
       state.myPullRequestsStatus = "succeeded";
+    },
+    fetchWaitingPullRequests(state) {
+      state.waitingError = null;
+      state.waitingStatus = "loading";
+    },
+    fetchWaitingPullRequestsFailed(state, action: PayloadAction<PrFetchError>) {
+      state.waitingError = action.payload;
+      state.waitingStatus = "failed";
+    },
+    fetchWaitingPullRequestsSucceeded(
+      state,
+      action: PayloadAction<{
+        readyToMerge: PullRequestSummary[];
+        waitingOnAuthor: PullRequestSummary[];
+      }>,
+    ) {
+      state.readyToMergePullRequests = action.payload.readyToMerge;
+      state.waitingOnAuthorPullRequests = action.payload.waitingOnAuthor;
+      state.waitingError = null;
+      state.waitingStatus = "succeeded";
     },
     setPrListMode(state, action: PayloadAction<PrListMode>) {
       state.prListMode = action.payload;

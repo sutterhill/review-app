@@ -30,3 +30,9 @@ export const selectMyPullRequestsError = (state: RootState): PrFetchError | null
 export const selectMyPullRequestsStatus = (state: RootState): PrRequestStatus =>
   state.pr.myPullRequestsStatus;
 export const selectPrListMode = (state: RootState): PrListMode => state.pr.prListMode;
+export const selectReadyToMergePullRequests = (state: RootState): PullRequestSummary[] =>
+  state.pr.readyToMergePullRequests;
+export const selectWaitingOnAuthorPullRequests = (state: RootState): PullRequestSummary[] =>
+  state.pr.waitingOnAuthorPullRequests;
+export const selectWaitingStatus = (state: RootState): PrRequestStatus => state.pr.waitingStatus;
+export const selectWaitingError = (state: RootState): PrFetchError | null => state.pr.waitingError;
