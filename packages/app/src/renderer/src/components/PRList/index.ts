@@ -1,1 +1,1 @@
-export { PRList } from "./PRList";
+export { PRListItem } from "./PRListItem";

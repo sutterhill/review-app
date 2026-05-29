@@ -1,5 +1,6 @@
 import { all } from "redux-saga/effects";
 
+import { asideSaga } from "./aside/sagas/aside-saga";
 import { authSaga } from "./auth/sagas/auth-saga";
 import { commentsSaga } from "./comments/sagas/comments-saga";
 import { orchestratorSaga } from "./orchestrator/sagas/orchestrator-saga";
@@ -10,6 +11,7 @@ import { walkthroughSaga } from "./walkthrough/sagas/walkthrough-saga";
 
 export function* rootSaga(): Generator {
   yield all([
+    asideSaga(),
     authSaga(),
     commentsSaga(),
     walkthroughSaga(),

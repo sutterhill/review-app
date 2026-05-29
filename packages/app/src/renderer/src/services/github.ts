@@ -34,6 +34,7 @@ interface GitHubPullResponse {
   base?: { sha?: string };
   body?: string | null;
   created_at?: string;
+  draft?: boolean;
   head?: { ref?: string; sha?: string };
   html_url?: string;
   labels?: Array<GitHubLabelResponse | string>;
@@ -42,6 +43,12 @@ interface GitHubPullResponse {
   state?: "closed" | "open";
   title?: string;
   updated_at?: string;
+  user?: GitHubUserResponse | null;
+}
+
+interface GitHubReviewResponse {
+  state?: string;
+  submitted_at?: string | null;
   user?: GitHubUserResponse | null;
 }
 
@@ -300,12 +307,91 @@ export const fetchMyPullRequestsFromGitHub = async (): Promise<PullRequestSummar
   return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
 };
 
+export const fetchWaitingPullRequestsFromGitHub = async (): Promise<{
+  readyToMerge: PullRequestSummary[];
+  waitingOnAuthor: PullRequestSummary[];
+}> => {
+  const token = await getGitHubToken();
+
+  if (token.length === 0) {
+    throw new GitHubApiError("auth_failed", "Authenticate with GitHub first.", 401);
+  }
+
+  const user = await requestGitHub<GitHubUserResponse>("/user", token);
+
+  if (!user.login) {
+    throw new GitHubApiError("network", "GitHub user profile did not include a login.");
+  }
+
+  const [readyToMerge, waitingOnAuthor] = await Promise.all([
+    searchPullRequestSummaries(`is:open is:pr author:${user.login} review:approved`, token),
+    searchPullRequestSummaries(
+      `is:open is:pr reviewed-by:${user.login} -review-requested:${user.login} -author:${user.login}`,
+      token,
+    ),
+  ]);
+
+  return { readyToMerge, waitingOnAuthor };
+};
+
+const searchPullRequestSummaries = async (
+  searchQuery: string,
+  token: string,
+): Promise<PullRequestSummary[]> => {
+  const query = encodeURIComponent(searchQuery);
+  const search = await requestGitHub<GitHubIssueSearchResponse>(
+    `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
+    token,
+  );
+
+  const summaries = (search.items ?? []).map(toPullRequestSummary).filter(isPullRequestSummary);
+  return Promise.all(summaries.map((summary) => fetchPullRequestSummaryHead(summary, token)));
+};
+
 const fetchPullRequestSummaryHead = async (
   summary: PullRequestSummary,
   token: string,
 ): Promise<PullRequestSummary> => {
-  const pull = await requestGitHub<GitHubPullResponse>(createPullPath(summary), token);
-  return { ...summary, headRefName: pull.head?.ref ?? "" };
+  const pullPath = createPullPath(summary);
+  const [pull, reviews] = await Promise.all([
+    requestGitHub<GitHubPullResponse>(pullPath, token),
+    requestGitHub<GitHubReviewResponse[]>(`${pullPath}/reviews`, token).catch(() => []),
+  ]);
+
+  const reviewList = Array.isArray(reviews) ? reviews : [];
+  return {
+    ...summary,
+    headRefName: pull.head?.ref ?? "",
+    isDraft: pull.draft ?? false,
+    reviewDecision: computeReviewDecision(reviewList, pull.requested_reviewers?.length ?? 0),
+  };
+};
+
+const computeReviewDecision = (
+  reviews: GitHubReviewResponse[],
+  requestedReviewerCount: number,
+): PullRequestSummary["reviewDecision"] => {
+  const latestByReviewer = new Map<string, string>();
+  const latestSubmittedAt = new Map<string, string>();
+
+  for (const review of reviews) {
+    const state = review.state ?? "";
+    if (state === "COMMENTED" || state === "PENDING" || state === "") continue;
+    const login = review.user?.login;
+    if (!login) continue;
+    const submittedAt = review.submitted_at ?? "";
+    const previous = latestSubmittedAt.get(login);
+    if (previous === undefined || submittedAt.localeCompare(previous) >= 0) {
+      latestByReviewer.set(login, state);
+      latestSubmittedAt.set(login, submittedAt);
+    }
+  }
+
+  const decisions = [...latestByReviewer.values()];
+  if (decisions.includes("CHANGES_REQUESTED")) return "changes_requested";
+  if (decisions.includes("APPROVED")) return "approved";
+  if (requestedReviewerCount > 0 || decisions.length > 0) return "review_required";
+  return null;
 };
 
 const fetchPullRequestFiles = async (
@@ -446,11 +532,13 @@ const toPullRequestSummary = (item: GitHubIssueSearchItem): PullRequestSummary |
     author: toGitHubAccount(item.user),
     headRefName: "",
     htmlUrl: item.html_url ?? "",
+    isDraft: false,
     number: item.number,
     owner: repository.owner,
     reference: `${repository.owner}/${repository.repo}#${item.number}`,
     repo: repository.repo,
     repositoryName: `${repository.owner}/${repository.repo}`,
+    reviewDecision: null,
     title: item.title ?? "Untitled pull request",
     updatedAt: item.updated_at ?? "",
   };

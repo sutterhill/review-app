@@ -53,11 +53,13 @@ export interface PullRequestSummary {
   author: GitHubAccount;
   headRefName: string;
   htmlUrl: string;
+  isDraft: boolean;
   number: number;
   owner: string;
   reference: string;
   repo: string;
   repositoryName: string;
+  reviewDecision: "approved" | "changes_requested" | "review_required" | null;
   title: string;
   updatedAt: string;
 }
@@ -92,6 +94,10 @@ export interface PrState {
   openPullRequestsError: PrFetchError | null;
   openPullRequestsStatus: PrRequestStatus;
   prListMode: PrListMode;
+  readyToMergePullRequests: PullRequestSummary[];
   reference: string;
   status: PrRequestStatus;
+  waitingError: PrFetchError | null;
+  waitingOnAuthorPullRequests: PullRequestSummary[];
+  waitingStatus: PrRequestStatus;
 }

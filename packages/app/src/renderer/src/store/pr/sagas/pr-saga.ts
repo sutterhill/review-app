@@ -7,6 +7,7 @@ import {
   fetchOpenPullRequestsFromGitHub,
   fetchPullRequestComments,
   fetchPullRequestFromGitHub,
+  fetchWaitingPullRequestsFromGitHub,
 } from "../../../services/github";
 import { generateLocalDiff } from "../../../services/repo-manager";
 import { selectRepoEntries } from "../../repos/repos-selectors";
@@ -75,6 +76,18 @@ export function* fetchMyPullRequestsSaga(): Generator {
   }
 }
 
+export function* fetchWaitingPullRequestsSaga(): Generator {
+  try {
+    const pullRequests = (yield call(fetchWaitingPullRequestsFromGitHub)) as {
+      readyToMerge: PullRequestSummary[];
+      waitingOnAuthor: PullRequestSummary[];
+    };
+    yield put(prActions.fetchWaitingPullRequestsSucceeded(pullRequests));
+  } catch (error) {
+    yield put(prActions.fetchWaitingPullRequestsFailed(toPrFetchError(error)));
+  }
+}
+
 export function* fetchCommentsSaga(): Generator {
   try {
     const reference = (yield select(selectPrReference)) as string;
@@ -92,6 +105,7 @@ export function* prSaga(): Generator {
     takeLatest(prActions.fetchOpenPullRequests.type, fetchOpenPullRequestsSaga),
     takeLatest(prActions.fetchPr.type, fetchPrSaga),
     takeLatest(prActions.fetchPrSucceeded.type, fetchCommentsSaga),
+    takeLatest(prActions.fetchWaitingPullRequests.type, fetchWaitingPullRequestsSaga),
   ]);
 }
 

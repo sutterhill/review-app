@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import createSagaMiddleware from "redux-saga";
 
+import { asideReducer } from "./aside/aside-slice";
 import { authReducer } from "./auth/auth-slice";
 import { commentsReducer } from "./comments/comments-slice";
 import { orchestratorReducer } from "./orchestrator/orchestrator-slice";
@@ -16,6 +17,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ thunk: false }).concat(sagaMiddleware),
   reducer: {
+    aside: asideReducer,
     auth: authReducer,
     comments: commentsReducer,
     walkthrough: walkthroughReducer,
