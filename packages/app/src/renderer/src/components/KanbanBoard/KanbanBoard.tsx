@@ -337,6 +337,7 @@ const RepositorySection = ({
         asideAction="set"
         dropBehavior="removeAside"
         pullRequests={section.myPrs}
+        slotId="my-prs"
         subGroupByAction
         title="My PRs"
       />
@@ -344,6 +345,7 @@ const RepositorySection = ({
         asideAction="set"
         dropBehavior="removeAside"
         pullRequests={section.needsReview}
+        slotId="needs-review"
         title="Needs review"
       />
       <WaitingColumnSlot
@@ -354,6 +356,7 @@ const RepositorySection = ({
         asideAction="remove"
         dropBehavior="setAside"
         pullRequests={section.aside}
+        slotId="aside"
         title="Aside"
       />
       {showCap ? (

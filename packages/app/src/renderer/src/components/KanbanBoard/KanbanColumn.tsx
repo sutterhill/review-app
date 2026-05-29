@@ -104,6 +104,7 @@ interface ColumnSlotProps {
   asideAction?: AsideCardAction;
   dropBehavior?: ColumnDropBehavior;
   pullRequests: PullRequestSummary[];
+  slotId?: string;
   subGroupByAction?: boolean;
   title: string;
 }
@@ -112,6 +113,7 @@ export const ColumnSlot = ({
   asideAction,
   dropBehavior,
   pullRequests,
+  slotId,
   subGroupByAction,
   title,
 }: ColumnSlotProps): React.JSX.Element => {
@@ -155,12 +157,13 @@ export const ColumnSlot = ({
             key={group.id}
             label={group.label}
             pullRequests={group.pullRequests}
+            slotId={slotId}
           />
         ))
       ) : pullRequests.length > 0 ? (
         <div className="flex flex-col gap-1">
           <SubGroupHeaderPlaceholder />
-          {renderCards(pullRequests, asideAction)}
+          {renderCards(pullRequests, asideAction, slotId)}
         </div>
       ) : null}
     </div>
@@ -178,10 +181,14 @@ export const WaitingColumnSlot = ({
 }: WaitingColumnSlotProps): React.JSX.Element => (
   <div aria-label="Waiting column" className="flex min-h-[5rem] min-w-0 flex-col gap-3">
     {readyToMerge.length > 0 ? (
-      <SubGroup label="Ready to merge" pullRequests={readyToMerge} />
+      <SubGroup label="Ready to merge" pullRequests={readyToMerge} slotId="ready-to-merge" />
     ) : null}
     {waitingOnAuthor.length > 0 ? (
-      <SubGroup label="Waiting on author" pullRequests={waitingOnAuthor} />
+      <SubGroup
+        label="Waiting on author"
+        pullRequests={waitingOnAuthor}
+        slotId="waiting-on-author"
+      />
     ) : null}
   </div>
 );
@@ -190,6 +197,7 @@ interface SubGroupProps {
   asideAction?: AsideCardAction;
   label: string;
   pullRequests: PullRequestSummary[];
+  slotId?: string;
 }
 
 const SUB_GROUP_HEADER_CLASS =
@@ -199,20 +207,26 @@ const SubGroupHeaderPlaceholder = (): React.JSX.Element => (
   <h3 aria-hidden className={SUB_GROUP_HEADER_CLASS}>{"\u00A0"}</h3>
 );
 
-const SubGroup = ({ asideAction, label, pullRequests }: SubGroupProps): React.JSX.Element => (
+const SubGroup = ({
+  asideAction,
+  label,
+  pullRequests,
+  slotId,
+}: SubGroupProps): React.JSX.Element => (
   <div className="flex flex-col gap-1">
     <h3 className={SUB_GROUP_HEADER_CLASS}>{label}</h3>
-    {renderCards(pullRequests, asideAction)}
+    {renderCards(pullRequests, asideAction, slotId)}
   </div>
 );
 
 const renderCards = (
   pullRequests: PullRequestSummary[],
   asideAction?: AsideCardAction,
+  slotId?: string,
 ): React.JSX.Element[] =>
   pullRequests.map((pullRequest, index) => (
     <Fragment key={pullRequest.reference}>
-      <PRListItem asideAction={asideAction} pullRequest={pullRequest} />
+      <PRListItem asideAction={asideAction} pullRequest={pullRequest} slotId={slotId} />
       {index < pullRequests.length - 1 ? <Separator /> : null}
     </Fragment>
   ));

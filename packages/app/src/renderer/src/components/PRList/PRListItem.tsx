@@ -70,9 +70,14 @@ export const dispatchAsideToggle = (
 interface PRListItemProps {
   asideAction?: AsideCardAction;
   pullRequest: PullRequestSummary;
+  slotId?: string;
 }
 
-export const PRListItem = ({ asideAction, pullRequest }: PRListItemProps): React.JSX.Element => {
+export const PRListItem = ({
+  asideAction,
+  pullRequest,
+  slotId,
+}: PRListItemProps): React.JSX.Element => {
   const dispatch = useDispatch<AppDispatch>();
   const reviewPath = `/pr/${pullRequest.owner}/${pullRequest.repo}/${pullRequest.number}`;
   const isDraggable = asideAction != null;
@@ -97,12 +102,14 @@ export const PRListItem = ({ asideAction, pullRequest }: PRListItemProps): React
 
   const AsideIcon = asideAction === "set" ? PauseIcon : PlayIcon;
 
+  const transitionKey = slotId ? `${slotId}-${pullRequest.reference}` : pullRequest.reference;
+
   return (
     <article
-      className="group relative"
+      className="pr-card group relative"
       draggable={isDraggable}
       onDragStart={isDraggable ? handleDragStart : undefined}
-      style={{ viewTransitionName: sanitizeViewTransitionName(pullRequest.reference) }}
+      style={{ viewTransitionName: sanitizeViewTransitionName(transitionKey) }}
     >
       <Link
         className={cn(
